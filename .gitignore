@@ -1,3 +1,4 @@
 /vs
 /.vs/*
-DynamicTableCreation/.vs/*
+/DynamicTableCreation/.vs/*
+/ExcelGeneration/ .vs/*
