@@ -1,0 +1,60 @@
+﻿using DynamicTableCreation.Data;
+using DynamicTableCreation.Models.DTO;
+
+namespace DynamicTableCreation.Services
+{
+    public class ViewService
+    {
+        private readonly ApplicationDbContext _context;
+
+        public ViewService(ApplicationDbContext context)
+        {
+            _context = context;
+        }
+
+        public IEnumerable<EntityColumnDTO> GetColumnsForEntity(string entityName)
+        {
+            try
+            {
+                var entity = _context.EntityListMetadataModels.FirstOrDefault(e => e.EntityName == entityName);
+
+                if (entity == null)
+                {
+                    return null;
+                }
+                var columnsDTO = _context.EntityColumnListMetadataModels
+                    .Where(column => column.EntityId == entity.Id)
+                    .Select(column => new EntityColumnDTO
+                    {
+                        Id = column.Id,
+                        EntityColumnName = column.EntityColumnName,
+                        Datatype = column.Datatype,
+                        Length = column.Length,
+                        MinLength = column.MinLength,
+                        MaxLength = column.MaxLength,
+                        MinRange = column.MinRange,
+                        MaxRange = column.MaxRange,
+                        DateMinValue = column.DateMinValue,
+                        DateMaxValue = column.DateMaxValue,
+                        Description = column.Description,
+                        IsNullable = column.IsNullable,
+                        DefaultValue = column.DefaultValue,
+                        ColumnPrimaryKey = column.ColumnPrimaryKey,
+                        True = column.True,
+                        False = column.False
+                    }).ToList();
+
+                if (columnsDTO.Count == 0)
+                {
+                    return null;
+                }
+                return columnsDTO;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occurred in GetColumnsForEntity: {ex.Message}");
+                throw;
+            }
+        }
+    }
+}

@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "Hash": "DZJrGrCmu+43S9sI8SRdl3zOmrFU0T/FUyFtOJux0Gc=",
+  "Source": "BulkUploadModule",
+  "BasePath": "_content/BulkUploadModule",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": []
+}
