@@ -4,7 +4,7 @@ namespace DynamicTableCreation.Models.DTO
 {
     public class UpdateEntityColumnRequestModel
     {
-        public int EntityId { get; set; }
+        public  int EntityId { get; set; }
         public string EntityName { get; set; }
         public UpdateColumnList Update { get; set; }
     }
@@ -15,7 +15,6 @@ namespace DynamicTableCreation.Models.DTO
     }
     public class EntityColumnProperties
     {
-        public int EntityId { get; set; }
         public string EntityColumnName { get; set; }
         public string Datatype { get; set; }
         public int Length { get; set; }
@@ -35,7 +34,12 @@ namespace DynamicTableCreation.Models.DTO
         public string False { get; set; }
         public bool ColumnPrimaryKey { get; set; }
     }
+    public class TableCheckResult
+    {
+        public string TableName { get; set; }
+        public bool HasValues { get; set; }
+    }
 
-   
+
 
 }
