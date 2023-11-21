@@ -10,7 +10,7 @@ using DynamicTableCreation.Models.DTO;
 
 namespace ExcelGeneration.Controllers
 {
-   
+
     [ApiController]
     [EnableCors("AllowAngularDev")]
     public class EntityController : ControllerBase
@@ -164,12 +164,11 @@ namespace ExcelGeneration.Controllers
                 {
                     StatusCode = HttpStatusCode.InternalServerError,
                     IsSuccess = false,
-                    ErrorMessage = new List<string> {$"An error occurred while processing the request: {ex.Message} " },
+                    ErrorMessage = new List<string> { $"An error occurred while processing the request: {ex.Message} " },
                     Result = null
                 });
             }
         }
-
         [HttpPost("updateEntityColumn")]
         public IActionResult UpdateEntityColumn([FromBody] UpdateEntityColumnRequestModel request)
         {
@@ -180,10 +179,21 @@ namespace ExcelGeneration.Controllers
                     return BadRequest("Invalid request data. Update.PropertiesList cannot be null.");
                 }
 
+                int entityId = request.EntityId; // Use the entityId from the request
 
-                _dynamicDbService.UpdateEntityColumn(request.EntityId, request.EntityName, request.Update.PropertiesList);
+                if (entityId == 0)
+                {
+                    return NotFound($"EntityId not found for EntityName: {request.EntityName}");
+                }
 
-                return Ok("Entity column updated successfully.");
+                _dynamicDbService.UpdateEntityColumn(entityId, request.EntityName, request.Update.PropertiesList);
+
+                return Ok(new APIResponse
+                {
+                    StatusCode = HttpStatusCode.OK,
+                    IsSuccess = true,
+                    Result = $"Table '{request.EntityName}' updated successfully."
+                });
             }
             catch (Exception ex)
             {
@@ -191,23 +201,49 @@ namespace ExcelGeneration.Controllers
             }
         }
 
-        [HttpPost("api/entity/has-values")]
+        [HttpGet("getEntityIdByName/{entityName}")]
+        public IActionResult GetEntityIdByName(string entityName)
+        
+        {
+            try
+            {
+                int entityId = _dynamicDbService.GetEntityIdForTableName(entityName);
+
+                if (entityId == 0)
+                {
+                    return NotFound($"EntityId not found for EntityName: {entityName}");
+                }
+
+                return Ok(new APIResponse
+                {
+                    StatusCode = HttpStatusCode.OK,
+                    IsSuccess = true,
+                    Result = entityId
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"An error occurred while fetching the entityId: {ex.Message}");
+            }
+        }
+
+
+
+        [HttpGet("api/entity/{tableName}/has-values")]
         [EnableCors("AllowAngularDev")]
+        [HttpPost("api/entity/has-values")]
         public async Task<ActionResult<IDictionary<string, bool>>> CheckTablesHaveValues([FromBody] List<string> tableNames)
         {
             try
             {
-                var tablesWithValues = new Dictionary<string, bool>();
-                foreach (var tableName in tableNames)
-                {
-                    var tableHasValues = await _dynamicDbService.TableHasValuesAsync(tableName);
-                    tablesWithValues.Add(tableName, tableHasValues);
-                }
+                var tablesWithValues = await _dynamicDbService.TablesHaveValuesAsync(tableNames);
                 return Ok(tablesWithValues);
             }
             catch (Exception ex)
             {
+                // Log or handle the error as needed
                 Console.WriteLine($"An error occurred while checking if tables have values: {ex.Message}");
+
                 return StatusCode((int)HttpStatusCode.InternalServerError, new APIResponse
                 {
                     StatusCode = HttpStatusCode.InternalServerError,
@@ -217,6 +253,7 @@ namespace ExcelGeneration.Controllers
                 });
             }
         }
+
     }
 }
 

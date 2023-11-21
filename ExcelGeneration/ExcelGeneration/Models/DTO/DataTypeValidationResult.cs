@@ -6,5 +6,6 @@ namespace ExcelGeneration.Models.DTO
     {
         public List<string> BadRows { get; set; }
         public DataTable ValidDataTypesDataTable { get; set; }
+
     }
 }

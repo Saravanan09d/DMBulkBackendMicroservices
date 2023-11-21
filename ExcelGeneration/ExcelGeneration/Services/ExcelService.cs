@@ -11,7 +11,9 @@ using Dapper;
 using System.Text;
 using System.Drawing;
 using ExcelGeneration.Services;
+
 using Microsoft.Data.SqlClient;
+using System.Runtime.InteropServices;
 
 
 
@@ -208,7 +210,7 @@ public class ExcelService : IExcelService
                         continue;
                     }
                     string cleanedRow = rows[i].TrimStart(';').Trim();
-                    string[] values = cleanedRow.Split('!');
+                    string[] values = cleanedRow.Split(',');
                     for (int columnIndex = 0; columnIndex < values.Length; columnIndex++)
                     {
                         columnNamesWorksheet.Range[rowIndex, columnIndex + 1].Text = values[columnIndex];
@@ -881,106 +883,190 @@ public class ExcelService : IExcelService
         }
     }
 
-    public DataTable ReadExcelFromFormFile(IFormFile excelFile)
+  public DataTable ReadExcelFromFormFile(IFormFile excelFile)
+
     {
+
         using (Stream stream = excelFile.OpenReadStream())
+
         {
+
             using (var package = new ExcelPackage(stream))
+
             {
+
                 DataTable dataTable = new DataTable();
+
                 ExcelWorksheet worksheet = package.Workbook.Worksheets[1];
+
                 for (int col = 1; col <= worksheet.Dimension.End.Column; col++)
+
                 {
-                    // Check the first cell in each column
-                    //[2, col]=>[row,col]
+
                     var firstCell = worksheet.Cells[2, col];
+
                     if (string.IsNullOrWhiteSpace(firstCell.Text))
+
                     {
+
                         // Skip this column
+
                         continue;
+
                     }
+
                     dataTable.Columns.Add(firstCell.Text);
 
                 }
+
+
                 dataTable.Columns.Add("RowNumber", typeof(int)); // Add "RowNumber" column
+
+
                 for (int rowNumber = 3; rowNumber <= worksheet.Dimension.End.Row; rowNumber++)
+
                 {
+
                     var dataRow = dataTable.NewRow();
+
                     // Set the "RowNumber" value for each row
-                    //dataRow["RowNumber"] = rowNumber;
+
                     int colIndex = 0;
+
                     for (int col = 1; col <= worksheet.Dimension.End.Column; col++)
+
                     {
+
                         // Check if this column should be included
+
                         if (dataTable.Columns.Contains(worksheet.Cells[2, col].Text))
+
                         {
+
                             dataRow[colIndex] = worksheet.Cells[rowNumber, col].Text;
+
                             colIndex++;
+
                         }
+
                     }
+
                     dataTable.Rows.Add(dataRow);
+
                 }
+
                 bool allRowsAreNull = dataTable.AsEnumerable()
+
                 .All(row => row.ItemArray.All(field => field is DBNull || string.IsNullOrWhiteSpace(field.ToString())));
+
                 if (allRowsAreNull)
+
                 {
+
                     return null;
+
                 }
+
                 dataTable = dataTable.AsEnumerable()
+
                     .Where(row => !row.ItemArray.All(field => field is DBNull || string.IsNullOrWhiteSpace(field.ToString())))
+
                     .CopyToDataTable();
 
                 dataTable = dataTable.AsEnumerable().Select((row, index) =>
+
                 {
+
                     row.SetField("RowNumber", index + 3);
+
                     return row;
+
+
                 }).CopyToDataTable();
 
 
                 return dataTable;
+
             }
+
         }
+
     }
-    public List<Dictionary<string, string>> ReadDataFromExcel(Stream excelFileStream, int rowCount)
+   
+  public List<Dictionary<string, string>> ReadDataFromExcel(Stream excelFileStream, int rowCount)
+
     {
+
         using (var package = new ExcelPackage(excelFileStream))
+
         {
+
             ExcelWorksheet worksheet = package.Workbook.Worksheets[1];
+
             rowCount = rowCount + 2;
+
             int colCount = worksheet.Dimension.Columns;
+
             var data = new List<Dictionary<string, string>>();
+
             var columnNames = new List<string>();
+
             var skipColumns = new List<bool>();
+
             for (int col = 1; col <= colCount; col++)
+
             {
+
                 var columnName = worksheet.Cells[2, col].Value?.ToString();
+
                 columnNames.Add(columnName);
+
                 // Check if the first cell in this column is empty or null
+
                 skipColumns.Add(string.IsNullOrWhiteSpace(columnName));
+
             }
 
             // Read data rows
+
             for (int row = 3; row <= rowCount; row++)
+
             {
 
                 var rowData = new Dictionary<string, string>();
 
                 for (int col = 1; col <= colCount; col++)
+
                 {
+
                     // If the column should be skipped, don't include it in the rowData
+
                     if (!skipColumns[col - 1])
+
                     {
+
                         var columnName = columnNames[col - 1];
+
                         var cellValue = worksheet.Cells[row, col].Value?.ToString();
+
                         rowData[columnName] = cellValue;
+
                     }
+
                 }
+
                 // Include the row number as "RowNumber" in the dictionary
+
                 rowData["RowNumber"] = row.ToString();
+
                 data.Add(rowData);
+
             }
+
             return data;
+
         }
+
     }
     public bool IsValidDataType(string data, string expectedDataType)
     {
@@ -1095,47 +1181,94 @@ public class ExcelService : IExcelService
         return columnsDTO;
     }
 
+
     public async Task<LogDTO> Createlog(string tableName, List<string> filedata, string fileName, int successdata, List<string> errorMessage, int total_count, List<string> ErrorRowNumber)
+
     {
+
         var storeentity = await _context.EntityListMetadataModels.FirstOrDefaultAsync(x => x.EntityName.ToLower() == tableName.ToLower());
+
         LogParent logParent = new LogParent();
+
         logParent.FileName = fileName;
+
         logParent.User_Id = 1;
+
         logParent.Entity_Id = storeentity.Id;
+
         logParent.Timestamp = DateTime.UtcNow;
+
         logParent.PassCount = successdata;
+
         logParent.RecordCount = total_count;
+
         logParent.FailCount = total_count - successdata;
 
 
         // Insert the LogParent record
+
         _context.logParents.Add(logParent);
 
         try
+
         {
+
             await _context.SaveChangesAsync();
+
         }
+
         catch (Exception ex)
+
         {
+
             // Log or handle the exception
+
             Console.WriteLine("Error: " + ex.Message);
+
         }
 
         List<LogChild> logChildren = new List<LogChild>();
 
         for (int i = 0; i < errorMessage.Count; i++)
+
         {
+
             LogChild logChild = new LogChild();
+
             logChild.ParentID = logParent.ID; // Set the ParentId
+
             logChild.ErrorMessage = errorMessage[i];
 
             if (filedata.Count > 0)
+
             {
+
                 logChild.Filedata = filedata[i];
+
             }
+
             else
+
             {
+
                 logChild.Filedata = ""; // Set the filedata as needed
+
+            }
+
+            if (ErrorRowNumber.Count > 0)
+
+            {
+
+                logChild.ErrorRowNumber = ErrorRowNumber[i];
+
+            }
+
+            else
+
+            {
+
+                logChild.ErrorRowNumber = ""; // Set the filedata as needed
+
             }
 
             if (ErrorRowNumber.Count > 0)
@@ -1148,124 +1281,233 @@ public class ExcelService : IExcelService
             }
 
             // Insert the LogChild record
+
             _context.logChilds.Add(logChild);
 
             logChildren.Add(logChild);
+
         }
 
         try
+
         {
+
             await _context.SaveChangesAsync();
+
         }
+
         catch (Exception ex)
+
         {
+
             // Log or handle the exception
+
             Console.WriteLine("Error: " + ex.Message);
+
         }
 
         LogDTO logDTO = new LogDTO()
+
         {
+
             LogParentDTOs = logParent,
+
             ChildrenDTOs = logChildren
+
         };
 
         return logDTO;
+
     }
 
-    public void InsertDataFromDataTableToPostgreSQL(DataTable data, string tableName, List<string> columns, IFormFile file)
+public void InsertDataFromDataTableToPostgreSQL(DataTable data, string tableName, List<string> columns, IFormFile file)
+
     {
+
         var columnProperties = GetColumnsForEntity(tableName).ToList();
+
         var booleancolumns = columnProperties.Where(c => c.Datatype.ToLower() == "boolean").ToList();
+
         List<Dictionary<string, string>> convertedDataList = new List<Dictionary<string, string>>();
+
         foreach (DataRow row in data.Rows)
+
         {
+
             Dictionary<string, string> convertedData = new Dictionary<string, string>();
+
             for (int i = 0; i < row.ItemArray.Length; i++)
+
             {
+
                 string cellValue = row[i].ToString();
+
                 EntityColumnDTO columnProperty = columnProperties.FirstOrDefault(col => col.EntityColumnName == data.Columns[i].ColumnName);
+
                 if (columnProperty != null)
+
                 {
+
                     // Use the column name from ColumnProperties as the key and the cell value as the value
+
                     convertedData[columnProperty.EntityColumnName] = cellValue;
+
                 }
+
             }
+
             convertedDataList.Add(convertedData);
+
         }
+
         // 'convertedDataList' is now a list of dictionaries, each representing a row in the desired format.
+
         IConfigurationBuilder configurationBuilder = new ConfigurationBuilder().SetBasePath(Directory.GetCurrentDirectory()).AddJsonFile("appsettings.Development.json");
+
         var storeentity = _context.EntityListMetadataModels.FirstOrDefaultAsync(x => x.EntityName.ToLower() == tableName.ToLower());
+
         tableName = storeentity.Result.EntityName;
+
         IConfigurationRoot configuration = configurationBuilder.Build();
+
         string connectionString = configuration.GetConnectionString("DefaultConnection");
+
         var errorDataList = convertedDataList;
+
         using (NpgsqlConnection connection = new NpgsqlConnection(connectionString))
+
         {
+
             connection.Open();
+
             List<Dictionary<string, string>> dataToRemove = new List<Dictionary<string, string>>();
+
             try
+
             {
+
                 foreach (var data2 in convertedDataList)
+
                 {
+
                     foreach (var boolvalue in booleancolumns)
+
                     {
+
                         if (data2.ContainsKey(boolvalue.EntityColumnName))
+
                         {
+
                             // Update the value for the specific key
+
                             var value = data2[boolvalue.EntityColumnName];
+
                             if (value.ToLower() == boolvalue.True.ToLower())
+
                             {
+
                                 data2[boolvalue.EntityColumnName] = "1";
+
                             }
+
                             else
+
                             {
+
                                 data2[boolvalue.EntityColumnName] = "0";
+
                             }
+
                         }
+
                     }
+
                     using (NpgsqlCommand cmd = new NpgsqlCommand())
+
                     {
+
                         cmd.Connection = connection;
+
                         // Build the INSERT statement
+
                         string columns2 = string.Join(", ", data2.Keys.Select(k => $"\"{k}\"")); // Use double quotes for case-sensitive column names
+
                         string values = string.Join(", ", data2.Values.Select(v => $"'{v}'")); // Wrap values in single quotes for strings
+
                         string query = $"INSERT INTO \"{tableName}\" ({columns2}) VALUES ({values})"; // Use double quotes for case-sensitive table name
+
                         cmd.CommandText = query;
+
                         cmd.ExecuteNonQuery();
+
                         dataToRemove.Add(data2);
+
                     }
+
                 }
+
                 connection.Close();
+
             }
+
             catch (Exception ex)
+
             {
+
                 connection.Close();
+
                 var successdata = convertedDataList.Count - errorDataList.Count;
+
                 string errorMessages = "Server error";
+
                 string successMessage = " ";
+
                 string fileName = file.FileName;
+
                 List<string> errorRownumber = new List<string>();
+
                 List<string> badRows = new List<string>();
+
                 foreach (var dataToRemoveItem in dataToRemove)
+
                 {
+
                     errorDataList.Remove(dataToRemoveItem);
+
                 }
+
                 foreach (var dict in errorDataList)
+
                 {
+
                     StringBuilder sb = new StringBuilder();
+
                     foreach (var value in dict.Values)
+
                     {
+
                         if (sb.Length > 0)
+
                             sb.Append(", ");
+
                         sb.Append(value);
+
                     }
+
                     badRows.Add(sb.ToString());
+
                 }
+
                 string comma_separated_string = string.Join(",", columns.ToArray());
+
                 badRows.Insert(0, comma_separated_string);
+
                 var result = Createlog(tableName, badRows, fileName, successdata, new List<string> { errorMessages }, convertedDataList.Count, errorRownumber);
+
             }
+
         }
+
     }
     public int GetEntityIdByEntityNamefromui(string entityName)
     {
@@ -1353,6 +1595,7 @@ public class ExcelService : IExcelService
             throw new Exception("Error checking table existence in the specified database.", ex);
         }
     }
+
     public async Task<ValidationResultData> ValidateNotNull(DataTable excelData, List<EntityColumnDTO> columnsDTO)
     {
         List<string> badRows = new List<string>();
@@ -1546,13 +1789,6 @@ public class ExcelService : IExcelService
         // Return both results
         return new ValidationResult { ErrorRowNumber = values, Filedatas = baddatas, errorMessages = errorMessages };
     }
-
-   
-
-
-
-
-
 
 }
 
