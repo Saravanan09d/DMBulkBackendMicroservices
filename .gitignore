@@ -2,7 +2,6 @@
 /.vs/*
 /DynamicTableCreation/.vs/*
 /ExcelGeneration/.vs/*
-<<<<<<< HEAD
 /BulkUploadModule/obj/Debug/net7.0/BulkUploadModule.AssemblyInfoInputs.cache
 /BulkUploadModule/obj/Debug/net7.0/BulkUploadModule.assets.cache
 /BulkUploadModule/obj/Debug/net7.0/BulkUploadModule.csproj.AssemblyReference.cache
@@ -27,6 +26,4 @@
 /ExcelGeneration/ExcelGeneration/obj/ExcelGeneration.csproj.nuget.g.props
 /ExcelGeneration/ExcelGeneration/obj/project.assets.json
 /ExcelGeneration/ExcelGeneration/obj/project.nuget.cache
-=======
-
->>>>>>> 12f9471cac6e0b0c7cdc8028605f63fe9013904a
+/DynamicTableCreation/DynamicTableCreation/obj/DynamicTableCreation.csproj.nuget.g.targets
