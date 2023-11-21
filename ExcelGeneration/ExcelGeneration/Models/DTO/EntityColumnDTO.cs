@@ -24,6 +24,10 @@ namespace ExcelGeneration.Models.DTO
         public bool ColumnPrimaryKey { get; set; }
         public string True { get; set; }
         public string False { get; set; }
+        public int ListEntityId { get; set; }
+        public int ListEntityKey { get; set; }
+        public int ListEntityValue { get; set; }
+
 
         public static explicit operator EntityColumnDTO(EntityColumnListMetadataModel data)
         {
@@ -46,6 +50,9 @@ namespace ExcelGeneration.Models.DTO
                 ColumnPrimaryKey = data.ColumnPrimaryKey,
                 True = data.True,
                 False = data.False,
+                ListEntityId = data.ListEntityId,
+                ListEntityKey = data.ListEntityKey,
+                ListEntityValue = data.ListEntityValue,
             };
         }
 
@@ -70,6 +77,9 @@ namespace ExcelGeneration.Models.DTO
                 ColumnPrimaryKey = data.ColumnPrimaryKey,
                 True = data.True,
                 False = data.False,
+                ListEntityId = data.ListEntityId,
+                ListEntityKey = data.ListEntityKey,
+                ListEntityValue = data.ListEntityValue,
             };
         }
     }

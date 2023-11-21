@@ -1,9 +1,11 @@
 ﻿using DynamicTableCreation.Data;
 using DynamicTableCreation.Models;
 using DynamicTableCreation.Models.DTO;
+using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using System.Net;
 
 namespace DynamicTableCreation.Services
 {
@@ -265,11 +267,22 @@ namespace DynamicTableCreation.Services
             return oldEntityName;
         }
 
+        public int GetEntityIdForTableName(string entityName)
+        {
+            var entity = _dbContext.EntityListMetadataModels
+                   .FirstOrDefault(e => e.EntityName == entityName);
+
+            return entity?.Id ?? 0;
+        }
         public void UpdateEntityColumn(int entityId, string newEntityName, List<EntityColumnProperties> newEntityColumns)
         {
-
+            // Get the old entity name
             string oldEntityName = GetOldEntityName(entityId);
+
+            // Drop the existing table
             DropTable(oldEntityName);
+
+            // Get the existing entity with columns
             var existingEntity = _dbContext.EntityListMetadataModels
                 .Include(e => e.EntityColumns)
                 .FirstOrDefault(e => e.Id == entityId);
@@ -278,9 +291,11 @@ namespace DynamicTableCreation.Services
             {
                 return;
             }
-
+            // Update entity name
             existingEntity.EntityName = newEntityName;
-
+            // Delete old values for the given entityId
+            DeleteOldValues(entityId);
+            // Update existing columns and add new columns
             foreach (var newColumn in newEntityColumns)
             {
                 var existingColumn = existingEntity.EntityColumns
@@ -288,62 +303,103 @@ namespace DynamicTableCreation.Services
 
                 if (existingColumn != null)
                 {
-                    existingColumn.EntityColumnName = newColumn.EntityColumnName;
-                    existingColumn.Datatype = newColumn.Datatype;
-                    existingColumn.Length = newColumn.Length;
-                    existingColumn.MinLength = newColumn.MinLength;
-                    existingColumn.MaxLength = newColumn.MaxLength;
-                    existingColumn.MaxRange = newColumn.MaxRange;
-                    existingColumn.MinRange = newColumn.MinRange;
-                    existingColumn.DateMinValue = newColumn.DateMinValue;
-                    existingColumn.DateMaxValue = newColumn.DateMaxValue;
-                    existingColumn.Description = newColumn.Description;
-                    existingColumn.IsNullable = newColumn.IsNullable;
-                    existingColumn.DefaultValue = newColumn.DefaultValue;
-                    existingColumn.ListEntityId = newColumn.ListEntityId;
-                    existingColumn.ListEntityKey = newColumn.ListEntityKey;
-                    existingColumn.ListEntityValue = newColumn.ListEntityValue;
-                    existingColumn.True = newColumn.True;
-                    existingColumn.False = newColumn.False;
-                    existingColumn.ColumnPrimaryKey = newColumn.ColumnPrimaryKey;
-                    existingColumn.UpdatedDate = DateTime.UtcNow; 
+                    // Update existing column
+                    UpdateExistingColumn(existingColumn, newColumn);
                 }
                 else
                 {
-                    var entityColumn = new EntityColumnListMetadataModel
-                    {
-                        EntityColumnName = newColumn.EntityColumnName,
-                        Datatype = newColumn.Datatype,
-                        Length = newColumn.Length,
-                        MinLength = newColumn.MinLength,
-                        MaxLength = newColumn.MaxLength,
-                        MaxRange = newColumn.MaxRange,
-                        MinRange = newColumn.MinRange,
-                        DateMinValue = newColumn.DateMinValue,
-                        DateMaxValue = newColumn.DateMaxValue,
-                        Description = newColumn.Description,
-                        IsNullable = newColumn.IsNullable,
-                        DefaultValue = newColumn.DefaultValue,
-                        ListEntityId = newColumn.ListEntityId,
-                        ListEntityKey = newColumn.ListEntityKey,
-                        ListEntityValue = newColumn.ListEntityValue,
-                        True = newColumn.True,
-                        False = newColumn.False,
-                        ColumnPrimaryKey = newColumn.ColumnPrimaryKey,
-                        CreatedDate = DateTime.UtcNow,
-                        UpdatedDate = DateTime.UtcNow,
-                        EntityId = entityId // Set the reference to the parent entity
-                    };
-                    existingEntity.EntityColumns.Add(entityColumn);
+                    // Add new column
+                    AddNewColumn(existingEntity, newColumn);
                 }
             }
+
+            // Save changes to the database
             _dbContext.SaveChanges();
+
+            // Generate SQL to create the new table with updated columns
             var createTableSql = GenerateCreateTableSql(new TableCreationRequest
             {
                 TableName = newEntityName,
                 Columns = newEntityColumns.Select(ConvertToColumnDefinition).ToList()
             });
+
+            // Execute the SQL to create the new table
             _dbContext.Database.ExecuteSqlRaw(createTableSql);
+        }
+        private void DeleteOldValues(int entityId)
+        {
+            try
+            {
+                // Find the records associated with the entityId
+                var recordsToDelete = _dbContext.EntityColumnListMetadataModels
+                    .Where(e => e.EntityId == entityId)
+                    .ToList();
+
+                // Delete the records
+                _dbContext.EntityColumnListMetadataModels.RemoveRange(recordsToDelete);
+
+                // Save changes to the database
+                _dbContext.SaveChanges();
+            }
+            catch (Exception ex)
+            {
+                // Handle or log the exception as needed
+                Console.WriteLine($"An error occurred while deleting old values: {ex.Message}");
+            }
+        }
+
+
+
+        private void UpdateExistingColumn(EntityColumnListMetadataModel existingColumn, EntityColumnProperties newColumn)
+        {
+            // Update properties of the existing column
+            existingColumn.Datatype = newColumn.Datatype;
+            existingColumn.Length = newColumn.Length;
+            existingColumn.MinLength = newColumn.MinLength;
+            existingColumn.MaxLength = newColumn.MaxLength;
+            existingColumn.MaxRange = newColumn.MaxRange;
+            existingColumn.MinRange = newColumn.MinRange;
+            existingColumn.DateMinValue = newColumn.DateMinValue;
+            existingColumn.DateMaxValue = newColumn.DateMaxValue;
+            existingColumn.Description = newColumn.Description;
+            existingColumn.IsNullable = newColumn.IsNullable;
+            existingColumn.DefaultValue = newColumn.DefaultValue;
+            existingColumn.ListEntityId = newColumn.ListEntityId;
+            existingColumn.ListEntityKey = newColumn.ListEntityKey;
+            existingColumn.ListEntityValue = newColumn.ListEntityValue;
+            existingColumn.True = newColumn.True;
+            existingColumn.False = newColumn.False;
+            existingColumn.ColumnPrimaryKey = newColumn.ColumnPrimaryKey;
+            existingColumn.UpdatedDate = DateTime.UtcNow;
+        }
+
+        private void AddNewColumn(EntityListMetadataModel existingEntity, EntityColumnProperties newColumn)
+        {
+            var entityColumn = new EntityColumnListMetadataModel
+            {
+                EntityColumnName = newColumn.EntityColumnName,
+                Datatype = newColumn.Datatype,
+                Length = newColumn.Length,
+                MinLength = newColumn.MinLength,
+                MaxLength = newColumn.MaxLength,
+                MaxRange = newColumn.MaxRange,
+                MinRange = newColumn.MinRange,
+                DateMinValue = newColumn.DateMinValue,
+                DateMaxValue = newColumn.DateMaxValue,
+                Description = newColumn.Description,
+                IsNullable = newColumn.IsNullable,
+                DefaultValue = newColumn.DefaultValue,
+                ListEntityId = newColumn.ListEntityId,
+                ListEntityKey = newColumn.ListEntityKey,
+                ListEntityValue = newColumn.ListEntityValue,
+                True = newColumn.True,
+                False = newColumn.False,
+                ColumnPrimaryKey = newColumn.ColumnPrimaryKey,
+                CreatedDate = DateTime.UtcNow,
+                UpdatedDate = DateTime.UtcNow,
+            };
+
+            existingEntity.EntityColumns.Add(entityColumn);
         }
         private ColumnDefinition ConvertToColumnDefinition(EntityColumnProperties entityColumn)
         {
@@ -367,7 +423,6 @@ namespace DynamicTableCreation.Services
                 True = entityColumn.True,
                 False = entityColumn.False,
                 ColumnPrimaryKey = entityColumn.ColumnPrimaryKey,
-                // Map other properties as needed...
             };
         }
 
@@ -384,43 +439,41 @@ namespace DynamicTableCreation.Services
                 // Log or handle the case where the table doesn't exist
             }
         }
-        public async Task<Dictionary<string, bool>> CheckTablesHasValuesAsync(List<string> tableNames)
+        // In your service class
+        public async Task<IDictionary<string, bool>> TablesHaveValuesAsync(List<string> tableNames)
         {
-            var result = new Dictionary<string, bool>();
+            var tablesWithValues = new Dictionary<string, bool>();
 
-            foreach (var tableName in tableNames)
-            {
-                var tableHasValues = await TableHasValuesAsync(tableName);
-                result.Add(tableName, tableHasValues);
-            }
-
-            return result;
-        }
-
-        public async Task<bool> TableHasValuesAsync(string tableName)
-        {
             try
             {
-                var lowerCaseTableName = tableName.ToLower();
-                var existingEntity = await _dbContext.EntityListMetadataModels
-                    .AnyAsync(e => e.EntityName.ToLower() == lowerCaseTableName);
-
-                if (!existingEntity)
+                foreach (var tableName in tableNames)
                 {
-                    // Table doesn't exist, consider it doesn't have values
-                    return false;
+                    var tableExists = await TableExistsAsync(tableName);
+                    if (!tableExists)
+                    {
+                        // If the table doesn't exist, consider it as having no values
+                        tablesWithValues.Add(tableName, false);
+                        continue;
+                    }
+
+                    var sql = $"SELECT 1 FROM \"{tableName}\" LIMIT 1";
+                    var tableHasValues = await _dbContext.EntityListMetadataModels
+                        .FromSqlRaw(sql)
+                        .AnyAsync();
+
+                    tablesWithValues.Add(tableName, tableHasValues);
                 }
 
-                var tableHasValues = await _dbContext.Database
-                    .ExecuteSqlRawAsync($"SELECT 1 FROM \"{tableName}\" LIMIT 1");
-                return tableHasValues > 0;
+                return tablesWithValues;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"An error occurred while checking if table '{tableName}' has values: {ex.Message}");
-                return false;
+                // Log or handle the exception as needed
+                Console.WriteLine($"An error occurred while checking if tables have values: {ex.Message}");
+
+                // Return an empty result indicating an error
+                return new Dictionary<string, bool>();
             }
         }
-
     }
 }
