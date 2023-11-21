@@ -11,7 +11,10 @@ using Dapper;
 using System.Text;
 using System.Drawing;
 using ExcelGeneration.Services;
+
+using Microsoft.Data.SqlClient;
 using System.Runtime.InteropServices;
+
 
 
 public class ExcelService : IExcelService
@@ -51,6 +54,10 @@ public class ExcelService : IExcelService
         worksheet.Range["L2"].Text = "Unique Value";
         worksheet.Range["M2"].Text = "Option1";
         worksheet.Range["N2"].Text = "Option2";
+        worksheet.Range["O2"].Text = "ListEntityID";
+        worksheet.Range["P2"].Text = "ListEntityKey";
+        worksheet.Range["Q2"].Text = "ListEntityValue";
+
         // Populate the first sheet with column details
         for (int i = 0; i < columns.Count; i++)
         {
@@ -110,6 +117,10 @@ public class ExcelService : IExcelService
             worksheet.Range[i + 3, 12].Text = column.ColumnPrimaryKey.ToString();
             worksheet.Range[i + 3, 13].Text = column.True.ToString();
             worksheet.Range[i + 3, 14].Text = column.False.ToString();
+            worksheet.Range[i + 3, 15].Text = column.ListEntityId.ToString();
+            worksheet.Range[i + 3, 16].Text = column.ListEntityKey.ToString();
+            worksheet.Range[i + 3, 17].Text = column.ListEntityValue.ToString();
+          
             var lastRowIndex1 = worksheet.Rows.Length;
             worksheet.Range[lastRowIndex1 + 1, 1].Text = (i + 2).ToString();
             worksheet.Range[lastRowIndex1 + 1, 1].Style.HorizontalAlignment = HorizontalAlignType.Right;
@@ -892,10 +903,6 @@ public class ExcelService : IExcelService
 
                 {
 
-                    // Check the first cell in each column
-
-                    //[2, col]=>[row,col]
-
                     var firstCell = worksheet.Cells[2, col];
 
                     if (string.IsNullOrWhiteSpace(firstCell.Text))
@@ -912,7 +919,9 @@ public class ExcelService : IExcelService
 
                 }
 
+
                 dataTable.Columns.Add("RowNumber", typeof(int)); // Add "RowNumber" column
+
 
                 for (int rowNumber = 3; rowNumber <= worksheet.Dimension.End.Row; rowNumber++)
 
@@ -921,8 +930,6 @@ public class ExcelService : IExcelService
                     var dataRow = dataTable.NewRow();
 
                     // Set the "RowNumber" value for each row
-
-                    //dataRow["RowNumber"] = rowNumber;
 
                     int colIndex = 0;
 
@@ -973,6 +980,7 @@ public class ExcelService : IExcelService
                     row.SetField("RowNumber", index + 3);
 
                     return row;
+
 
                 }).CopyToDataTable();
 
@@ -1160,7 +1168,10 @@ public class ExcelService : IExcelService
                 DefaultValue = column.DefaultValue,
                 ColumnPrimaryKey = column.ColumnPrimaryKey,
                 True = column.True,
-                False = column.False
+                False = column.False,
+                ListEntityId = column.ListEntityId,
+                ListEntityKey = column.ListEntityKey,
+                ListEntityValue = column.ListEntityValue,
             }).ToList();
         if (columnsDTO.Count == 0)
         {
@@ -1169,8 +1180,6 @@ public class ExcelService : IExcelService
         }
         return columnsDTO;
     }
-
-
 
 
     public async Task<LogDTO> Createlog(string tableName, List<string> filedata, string fileName, int successdata, List<string> errorMessage, int total_count, List<string> ErrorRowNumber)
@@ -1260,6 +1269,15 @@ public class ExcelService : IExcelService
 
                 logChild.ErrorRowNumber = ""; // Set the filedata as needed
 
+            }
+
+            if (ErrorRowNumber.Count > 0)
+            {
+                logChild.ErrorRowNumber = ErrorRowNumber[i];
+            }
+            else
+            {
+                logChild.ErrorRowNumber = ""; // Set the filedata as needed
             }
 
             // Insert the LogChild record
@@ -1771,6 +1789,7 @@ public void InsertDataFromDataTableToPostgreSQL(DataTable data, string tableName
         // Return both results
         return new ValidationResult { ErrorRowNumber = values, Filedatas = baddatas, errorMessages = errorMessages };
     }
+
 }
 
 

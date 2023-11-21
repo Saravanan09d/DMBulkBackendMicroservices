@@ -1,15 +1,23 @@
-﻿using DynamicTableCreation.Data;
+﻿using Dapper;
+using DynamicTableCreation.Data;
 using DynamicTableCreation.Models.DTO;
+using Microsoft.Data.SqlClient;
+using Npgsql;
+using System.Data;
+using System.Data.Common;
 
 namespace DynamicTableCreation.Services
 {
     public class ViewService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IDbConnection _dbConnection;
 
-        public ViewService(ApplicationDbContext context)
+
+        public ViewService(ApplicationDbContext context, IDbConnection dbConnection)
         {
             _context = context;
+            _dbConnection = dbConnection;
         }
 
         public IEnumerable<EntityColumnDTO> GetColumnsForEntity(string entityName)
@@ -27,6 +35,7 @@ namespace DynamicTableCreation.Services
                     .Select(column => new EntityColumnDTO
                     {
                         Id = column.Id,
+                        EntityId = column.EntityId,
                         EntityColumnName = column.EntityColumnName,
                         Datatype = column.Datatype,
                         Length = column.Length,
@@ -41,7 +50,11 @@ namespace DynamicTableCreation.Services
                         DefaultValue = column.DefaultValue,
                         ColumnPrimaryKey = column.ColumnPrimaryKey,
                         True = column.True,
-                        False = column.False
+                        False = column.False,
+                        ListEntityId = column.ListEntityId,
+                        ListEntityKey = column.ListEntityKey,
+                        ListEntityValue = column.ListEntityValue
+
                     }).ToList();
 
                 if (columnsDTO.Count == 0)
@@ -56,5 +69,55 @@ namespace DynamicTableCreation.Services
                 throw;
             }
         }
+
+
+        public async Task<(string TableName, List<dynamic> Rows)> GetTableDataByListEntityId(int listEntityId)
+        {
+            // Use Entity Framework Core to get the table name
+            var tableNameEntity = _context.EntityColumnListMetadataModels.FirstOrDefault(mapping => mapping.ListEntityId == listEntityId);
+
+            if (tableNameEntity == null)
+            {
+                // Handle the case where the table name is not found
+                return (null, null);
+            }
+
+            // Query the EntityListMetadataModels DbSet to get the EntityName based on the listEntityId
+            var entityNameEntity = _context.EntityListMetadataModels.FirstOrDefault(entity => entity.Id == tableNameEntity.ListEntityId);
+
+            if (entityNameEntity == null)
+            {
+                // Handle the case where the EntityName is not found
+                return (null, null);
+            }
+
+            string tableName = entityNameEntity.EntityName;
+
+            try
+            {
+                using (IDbConnection dbConnection = new NpgsqlConnection(_dbConnection.ConnectionString))
+                {
+                    dbConnection.Open();
+
+                    // Dynamically query the table based on the provided table name
+                    string rowDataQuery = $"SELECT * FROM public.\"{tableName}\"";
+
+                    // Use Dapper to execute the query and return the results
+          
+                    var rows = dbConnection.Query(rowDataQuery).ToList();
+
+
+                    return (tableName, rows);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occurred in GetTableDataByListEntityId: {ex.Message}");
+                throw;
+            }
+
+        }
+
+
     }
 }

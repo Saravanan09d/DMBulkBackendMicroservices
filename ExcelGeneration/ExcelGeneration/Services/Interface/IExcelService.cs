@@ -22,11 +22,12 @@ namespace ExcelGeneration.Services.Interface
         public bool TableExists(string tableName);
         public bool IsValidByteA(string data);
         public bool IsHexString(string input);
-        
+
         public Task<ValidationResultData> ValidateNotNull(DataTable excelData, List<EntityColumnDTO> columnsDTO);
         public DataTypeValidationResult ValidateDataTypes(ValidationResultData validationResult, List<EntityColumnDTO> columnsDTO);
         public Task<ValidationResultData> ValidatePrimaryKeyAsync(ValidationResultData validationResult, List<EntityColumnDTO> columnsDTO, string tableName);
         public Task<ValidationResult> resultparams(ValidationResultData validationResult, string comma_separated_string);
         public Task<ValidationResult> resultparamsforprimary(ValidationResultData validationResult, string comma_separated_string, string tableName);
+
     }
 }
