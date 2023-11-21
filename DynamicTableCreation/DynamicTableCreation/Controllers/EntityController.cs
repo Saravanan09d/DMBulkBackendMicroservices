@@ -137,7 +137,10 @@ namespace ExcelGeneration.Controllers
             try
             {
                 var columnsDTO = _viewService.GetColumnsForEntity(entityName);
-
+                // Assuming you have a ListEntityId in your columns
+                int listEntityId = columnsDTO.FirstOrDefault()?.ListEntityId ?? 0;
+                // Retrieve data from the database using the service method
+                var result = _viewService.GetTableDataByListEntityId(listEntityId).Result; // Use .Result to block until completion
                 if (columnsDTO == null)
                 {
                     return NotFound(new APIResponse
