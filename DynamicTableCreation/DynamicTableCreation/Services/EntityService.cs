@@ -1,11 +1,7 @@
 ﻿using DynamicTableCreation.Data;
 using DynamicTableCreation.Models;
 using DynamicTableCreation.Models.DTO;
-using Microsoft.AspNetCore.Cors;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using System.Net;
 
 namespace DynamicTableCreation.Services
 {
@@ -32,6 +28,7 @@ namespace DynamicTableCreation.Services
                 return false; 
             }
         }
+
         public TableCreationRequest MapToModel(TableCreationRequestDTO dto)
         {
             try
@@ -115,7 +112,6 @@ namespace DynamicTableCreation.Services
                 return null;
             }
         }
-
         private async Task BindColumnMetadataAsync(TableCreationRequest request, EntityListMetadataModel entityList)
         {
             try
@@ -172,6 +168,33 @@ namespace DynamicTableCreation.Services
             }
         }
 
+        private string GetTableNameForListEntityId(int entityId)
+        {
+            try
+            {
+                // Assuming EntityListMetadataModels is the DbSet in your DbContext
+                var entity = _dbContext.EntityListMetadataModels
+                    .FirstOrDefault(e => e.Id == entityId);
+
+                if (entity != null)
+                {
+                    // Check if EntityName is not null or empty before returning
+                    if (!string.IsNullOrEmpty(entity.EntityName))
+                    {
+                        return entity.EntityName;
+                    }
+                }
+
+                return "TableNotFound";
+            }
+            catch (Exception ex)
+            {
+                // Handle or log the exception as needed
+                Console.WriteLine($"An error occurred while getting table name: {ex.Message}");
+                return "TableNotFound";
+            }
+        }
+
 
         private string GenerateCreateTableSql(TableCreationRequest request)
         {
@@ -210,6 +233,18 @@ namespace DynamicTableCreation.Services
                             if (column.Length == 1)
                             {
                                 createTableSql += $"({column.Length})";
+                            }
+                            break;
+                        case "listofvalue":
+                            // Find the referenced table name based on ListEntityId
+                            var referencedTableName = GetTableNameForListEntityId(column.ListEntityId);
+                            if (!string.IsNullOrEmpty(referencedTableName))
+                            {
+                                createTableSql += $"varchar REFERENCES \"{referencedTableName}\"";
+                            }
+                            else
+                            {
+                                    createTableSql += "varchar";
                             }
                             break;
                         case "boolean":
