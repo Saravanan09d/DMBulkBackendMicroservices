@@ -227,9 +227,39 @@ namespace ExcelGeneration.Controllers
             }
         }
 
+        [HttpGet("getEntityData")]
+        public async Task<IActionResult> GetEntityData(int listEntityId, int listEntityKey, int listEntityValue)
+        {
+            try
+            {
+                var entityData = await _dynamicDbService.GetEntityData(listEntityId, listEntityKey, listEntityValue);
+
+                if (string.IsNullOrEmpty(entityData.EntityName) || string.IsNullOrEmpty(entityData.EntityKeyColumnName) || string.IsNullOrEmpty(entityData.EntityValueColumnName))
+                {
+                    // Handle the case where no data is found
+                    return NotFound("No data found for the provided parameters.");
+                }
+
+                // Return the data as a JSON response
+                return Ok(new
+                {
+                    EntityName = entityData.EntityName,
+                    EntityKeyColumnName = entityData.EntityKeyColumnName,
+                    EntityValueColumnName = entityData.EntityValueColumnName
+                });
+            }
+            catch (Exception ex)
+            {
+                // Log the exception or handle it as needed
+                Console.WriteLine($"An error occurred: {ex.Message}");
+
+                // Return an error response
+                return StatusCode(500, "An error occurred while processing the request.");
+            }
+        }
 
 
-        [HttpGet("api/entity/{tableName}/has-values")]
+
         [EnableCors("AllowAngularDev")]
         [HttpPost("api/entity/has-values")]
         public async Task<ActionResult<IDictionary<string, bool>>> CheckTablesHaveValues([FromBody] List<string> tableNames)

@@ -202,13 +202,16 @@ namespace DynamicTableCreation.Services
             {
                 var createTableSql = $"CREATE TABLE \"{request.TableName}\" (";
                 bool hasColumns = false;
+
                 foreach (var column in request.Columns)
                 {
                     if (hasColumns)
                     {
                         createTableSql += ",";
                     }
+
                     createTableSql += $"\"{column.EntityColumnName}\" ";
+
                     switch (column.DataType.ToLower())
                     {
                         case "int":
@@ -218,33 +221,20 @@ namespace DynamicTableCreation.Services
                             createTableSql += "date";
                             break;
                         case "string":
-                            createTableSql += $"varchar";
-                            if (column.MaxLength > 0)
-                            {
-                                createTableSql += $"({column.MaxLength})";
-                            }
-                            else
-                            {
-                                createTableSql += "(255)";
-                            }
+                            createTableSql += $"varchar({(column.MaxLength > 0 ? column.MaxLength : 255)})";
                             break;
                         case "char":
-                            createTableSql += $"char";
-                            if (column.Length == 1)
-                            {
-                                createTableSql += $"({column.Length})";
-                            }
+                            createTableSql += $"char({(column.Length == 1 ? column.Length : 255)})";
                             break;
                         case "listofvalue":
-                            // Find the referenced table name based on ListEntityId
                             var referencedTableName = GetTableNameForListEntityId(column.ListEntityId);
                             if (!string.IsNullOrEmpty(referencedTableName))
                             {
-                                createTableSql += $"varchar REFERENCES \"{referencedTableName}\"";
+                                createTableSql += $"integer REFERENCES \"{referencedTableName}\"(\"Id\") NOT NULL";
                             }
                             else
                             {
-                                    createTableSql += "varchar";
+                                createTableSql += "integer";
                             }
                             break;
                         case "boolean":
@@ -260,23 +250,29 @@ namespace DynamicTableCreation.Services
                             createTableSql += "varchar";
                             break;
                     }
+
                     if (!column.IsNullable)
                     {
                         createTableSql += " NOT NULL";
                     }
+
                     if (!string.IsNullOrEmpty(column.DefaultValue))
                     {
                         createTableSql += $" DEFAULT '{column.DefaultValue}'";
                     }
+
                     if (column.ColumnPrimaryKey)
                     {
                         createTableSql += " PRIMARY KEY";
                     }
+
                     hasColumns = true;
                 }
+
                 createTableSql += hasColumns ? "," : "";
                 createTableSql += "\"createddate\" timestamp DEFAULT CURRENT_TIMESTAMP";
                 createTableSql += ");";
+
                 return createTableSql;
             }
             catch (Exception ex)
@@ -510,5 +506,48 @@ namespace DynamicTableCreation.Services
                 return new Dictionary<string, bool>();
             }
         }
+
+
+        public async Task<(string EntityName, string EntityKeyColumnName, string EntityValueColumnName)> GetEntityData(int ListEntityId, int ListEntityKey, int ListEntityValue)
+        {
+            try
+            {
+                // Fetch EntityName based on ListEntityId
+                var entityName = await _dbContext.EntityListMetadataModels
+                    .Where(entity => entity.Id == ListEntityId)
+                    .Select(entity => entity.EntityName)
+                    .FirstOrDefaultAsync();
+
+                // Fetch EntityColumnName based on ListEntityKey
+                var entityKeyColumnName = await _dbContext.EntityColumnListMetadataModels
+                    .Where(column => column.Id == ListEntityKey)
+                    .Select(column => column.EntityColumnName)
+                    .FirstOrDefaultAsync();
+
+                // Fetch EntityColumnName based on ListEntityValue
+                var entityValueColumnName = await _dbContext.EntityColumnListMetadataModels
+                    .Where(column => column.Id == ListEntityValue)
+                    .Select(column => column.EntityColumnName)
+                    .FirstOrDefaultAsync();
+
+                // Check if any of the data is null (not found) and handle accordingly
+                if (entityName != null && entityKeyColumnName != null && entityValueColumnName != null)
+                {
+                    return (entityName, entityKeyColumnName, entityValueColumnName);
+                }
+
+                // Return default values or handle the case where no data is found
+                return (string.Empty, string.Empty, string.Empty);
+            }
+            catch (Exception ex)
+            {
+                // Log or handle the exception as needed
+                Console.WriteLine($"An error occurred while fetching entity data: {ex.Message}");
+
+                // Return default values or handle the error according to your requirements
+                return (string.Empty, string.Empty, string.Empty);
+            }
+        }
+
     }
 }
