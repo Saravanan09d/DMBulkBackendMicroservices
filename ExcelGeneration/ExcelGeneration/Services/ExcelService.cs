@@ -6,27 +6,27 @@ using Npgsql;
 using OfficeOpenXml;
 using System.Data;
 using Spire.Xls;
+using Spire.Xls.Collections;
 using ExcelGeneration.Models;
 using Dapper;
 using System.Text;
 using System.Drawing;
 using ExcelGeneration.Services;
-
-using Microsoft.Data.SqlClient;
-using System.Runtime.InteropServices;
-
-
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 public class ExcelService : IExcelService
 {
+  
     private readonly ApplicationDbContext _context;
     private readonly IDbConnection _dbConnection;
     private readonly ExportExcelService _exportExcelService;
+   
     public ExcelService(ApplicationDbContext context, IDbConnection dbConnection, ExportExcelService exportExcelService)
     {
         _context = context;
         _dbConnection = dbConnection;
         _exportExcelService = exportExcelService;
+ 
     }
     public byte[] GenerateExcelFile(List<EntityColumnDTO> columns, int? parentId)
     {
@@ -85,7 +85,6 @@ public class ExcelService : IExcelService
             }
 
 
-
             if (string.IsNullOrEmpty(column.DateMinValue) && string.IsNullOrEmpty(column.DateMaxValue))
             {
                 worksheet.Range[i + 3, 7].Text = string.Empty;
@@ -96,6 +95,9 @@ public class ExcelService : IExcelService
                 worksheet.Range[i + 3, 7].Text = column.DateMinValue;
                 worksheet.Range[i + 3, 8].Text = column.DateMaxValue;
             }
+
+       
+
             worksheet.Range[i + 3, 8].Text = column.DateMaxValue.ToString();
             worksheet.Range[i + 3, 9].Text = column.Description;
             worksheet.Range[i + 3, 10].Text = column.IsNullable.ToString();
@@ -131,9 +133,6 @@ public class ExcelService : IExcelService
         }
         worksheet.HideRow(1);
 
-
-
-
         // Add static content in the last row (vertically)
         var lastRowIndex = worksheet.Rows.Length;
         worksheet.Range[lastRowIndex + 2, 1].Text = "";
@@ -164,7 +163,65 @@ public class ExcelService : IExcelService
             columnNamesWorksheet.Range[2, i + 1].Text = column.EntityColumnName;
             int entityId = GetEntityIdByEntityName(column.entityname);
             columnNamesWorksheet.Range["A1"].Text = entityId.ToString();
+
+            // Check if the current column has a data type of "ListOfValues"
+            bool isListOfValuesColumn = string.Equals(column.Datatype, "listofvalue", StringComparison.OrdinalIgnoreCase);
+
+            // If it's a "ListOfValues" column, you can take some action
+            if (isListOfValuesColumn)
+            {
+                int checklistEntityValue = column.ListEntityValue;
+                var (entityIds, entityColumnName) = GetAllEntityColumnData(checklistEntityValue);
+
+                var result = GetTableDataByChecklistEntityValue(checklistEntityValue);
+                (string tableName, List<dynamic> rows) = result;
+                if (tableName != null && rows != null && rows.Any())
+                {
+                    // Add a worksheet for the row data
+                    Worksheet rowDataWorksheet = workbook.Worksheets.Add($"Data_{tableName}");
+
+                    // Set the starting cell to populate the row data
+                    int startRow = 1;
+                    int startColumn = 1;
+
+                    // Get column names dynamically from the rowData
+                    var rowDataColumns = (rows.First() as IDictionary<string, object>)?.Keys.ToList();
+
+                    // Populate the first row with column names
+                    if (rowDataColumns != null)
+                    {
+                        for (int j = 0; j < rowDataColumns.Count; j++)
+                        {
+                            rowDataWorksheet.Range[startRow, startColumn + j].Text = rowDataColumns[j];
+                        }
+                    }
+
+                    // Populate the remaining rows with row data
+                    int rowIndex = 0; // Use a different variable name to avoid conflict
+                    for (; rowIndex < rows.Count; rowIndex++)
+                    {
+                        var rowData = rows[rowIndex] as IDictionary<string, object>;
+
+                        // Loop through columns to populate data
+                        for (int j = 0; j < rowDataColumns.Count; j++)
+                        {
+                            var columnName = rowDataColumns[j];
+                            var cellValue = rowData[columnName]?.ToString();
+                            rowDataWorksheet.Range[startRow + rowIndex + 1, startColumn + j].Text = cellValue ?? "";
+                        }
+                    }
+                }
+                // For example, you can set the background color to yellow
+
+                columnNamesWorksheet.Range[2, i + 1].Style.FillPattern = ExcelPatternType.Solid;
+                columnNamesWorksheet.Range[2, i + 1].Style.KnownColor = ExcelColors.Yellow;
+
+
+            }
+
+
         }
+
 
         columnNamesWorksheet.Range[2, lastColumnIndex].Text = "CurrentDate";
 
@@ -185,11 +242,58 @@ public class ExcelService : IExcelService
             }
         }
         AddDataValidation(columnNamesWorksheet, columns, parentId);
+        //full table display based on listentityid
+        int? listEntityId = columns.FirstOrDefault()?.ListEntityId;
+
+        if (listEntityId.HasValue)
+        {
+            // Fetch row data using GetTableDataByListEntityId method
+            var result1 = GetTableDataByListEntityId(listEntityId.Value).Result;
+            var (tableName, rows) = result1;
+
+            if (rows != null && rows.Any())
+            {
+                // Add a worksheet for the row data
+                Worksheet rowDataWorksheet = workbook.Worksheets.Add("rowDataWorksheet");
+
+                // Set the starting cell to populate the row data
+                int startRow = 1;
+                int startColumn = 1;
+
+                // Get column names dynamically from the rowData
+                var rowDataColumns = (rows.First() as IDictionary<string, object>)?.Keys.ToList();
+
+                // Populate the first row with column names
+                if (rowDataColumns != null)
+                {
+                    for (int j = 0; j < rowDataColumns.Count; j++)
+                    {
+                        rowDataWorksheet.Range[startRow, startColumn + j].Text = rowDataColumns[j];
+                    }
+                }
+
+                // Populate the remaining rows with row data
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    var rowData = rows[i] as IDictionary<string, object>;
+
+                    // Loop through columns to populate data
+                    for (int j = 0; j < rowDataColumns.Count; j++)
+                    {
+                        var columnName = rowDataColumns[j];
+                        var cellValue = rowData[columnName]?.ToString();
+                        rowDataWorksheet.Range[startRow + i + 1, startColumn + j].Text = cellValue ?? "";
+                    }
+                }
+            }
+        }
+
         using (MemoryStream memoryStream = new MemoryStream())
         {
             workbook.SaveToStream(memoryStream, FileFormat.Version2013);
             return memoryStream.ToArray();
         }
+
     }
     private async Task InsertDataIntoExcel(Worksheet columnNamesWorksheet, List<EntityColumnDTO> columns, int? parentId)
     {
@@ -576,6 +680,9 @@ public class ExcelService : IExcelService
                 // Specify the range for data validation
                 CellRange range = columnNamesWorksheet.Range[startRow, col, endRow, col];
                 Validation validation = range.DataValidation;
+
+
+
                 //Protect the worksheet with password
                 columnNamesWorksheet.Protect("123456", SheetProtectionType.All);
 
@@ -830,7 +937,41 @@ public class ExcelService : IExcelService
                         validation.ErrorMessage = "Invalid byte array format or length.";
                     }
                 }
-            }
+                else if (dataType.Equals("listofvalue", StringComparison.OrdinalIgnoreCase))
+                {
+                    //int checklistEntityValue = 4;
+                    //// Call the GetTableDataByChecklistEntityValue method to get distinct values for the specified column
+                    //var (tableName,rows) = GetTableDataByChecklistEntityValue(checklistEntityValue);
+
+                    //if (rows.Any())
+                    //{
+                    //    List<string> stringList = new List<string>();
+
+                    //    foreach (var row in rows)
+                    //    {
+                    //        // Assuming each row is a single value convertible to string
+                    //        stringList.Add(row.ToString());
+                    //    }
+
+                    //    // Convert List<string> to string[]
+                    //    validation.Values = stringList.ToArray();
+
+                    //    validation.ErrorTitle = "Error";
+                    //    validation.InputTitle = "Input Data";
+                    //    validation.ErrorMessage = "Select values from dropdown";
+                    //    validation.InputMessage = "Select values from dropdown";
+                    //}
+                    //else
+                    //{
+                    //    validation.Values = new string[] { "Default1", "Default2" };
+                    //    validation.ErrorTitle = "Error";
+                    //    validation.InputTitle = "Input Data";
+                    //    validation.ErrorMessage = "Select values from dropdown";
+                    //    validation.InputMessage = "Select values from dropdown";
+                    //}
+                }
+
+                }
             for (int i = 3; i <= 65537; i++)
             {
                 string startindex = letter + i.ToString();
@@ -883,7 +1024,7 @@ public class ExcelService : IExcelService
         }
     }
 
-  public DataTable ReadExcelFromFormFile(IFormFile excelFile)
+    public DataTable ReadExcelFromFormFile(IFormFile excelFile)
 
     {
 
@@ -993,7 +1134,7 @@ public class ExcelService : IExcelService
 
     }
    
-  public List<Dictionary<string, string>> ReadDataFromExcel(Stream excelFileStream, int rowCount)
+    public List<Dictionary<string, string>> ReadDataFromExcel(Stream excelFileStream, int rowCount)
 
     {
 
@@ -1181,7 +1322,201 @@ public class ExcelService : IExcelService
         return columnsDTO;
     }
 
+    public async Task<ValidationResultData> ValidateNotNull(DataTable excelData, List<EntityColumnDTO> columnsDTO)
+    {
+        List<string> badRows = new List<string>();
+        List<string> errorColumnNames = new List<string>();
+        DataTable validRowsDataTable = excelData.Clone(); // Create a DataTable to store valid rows
 
+        for (int row = 0; row < excelData.Rows.Count; row++)
+        {
+            bool rowValidationFailed = false;
+
+            string badRow = string.Join(",", excelData.Rows[row].ItemArray);
+
+            for (int col = 0; col < excelData.Columns.Count - 2; col++)
+            {
+                string cellData = excelData.Rows[row][col].ToString();
+                EntityColumnDTO columnDTO = columnsDTO[col];
+
+                if (columnDTO.IsNullable == true && string.IsNullOrEmpty(cellData))
+                {
+                    rowValidationFailed = true;
+                    badRows.Add(badRow);
+                    if (!errorColumnNames.Contains(columnDTO.EntityColumnName))
+                    {
+                        errorColumnNames.Add(columnDTO.EntityColumnName);
+                    }
+
+                    break;
+                }
+            }
+
+            if (!rowValidationFailed)
+            {
+                validRowsDataTable.Rows.Add(excelData.Rows[row].ItemArray);
+            }
+        }
+
+        // Return both results
+        return new ValidationResultData { BadRows = badRows, SuccessData = validRowsDataTable, errorcolumns = errorColumnNames, Column_Name = string.Empty };
+    }
+
+    public DataTypeValidationResult ValidateDataTypes(ValidationResultData validationResult, List<EntityColumnDTO> columnsDTO)
+    {
+        List<string> badRows = new List<string>();
+
+        // Access ValidRowsDataTable from the provided ValidationResult
+        DataTable validRowsDataTable = validationResult.SuccessData;
+
+        // Data Type Validation
+        DataTable validDataTypesDataTable = validRowsDataTable.Clone();
+
+        for (int row = 0; row < validRowsDataTable.Rows.Count; row++)
+        {
+            bool rowValidationFailed = false;
+
+            for (int col = 0; col < validRowsDataTable.Columns.Count - 2; col++)
+            {
+                string cellData = validRowsDataTable.Rows[row][col].ToString();
+                EntityColumnDTO columnDTO = columnsDTO[col];
+
+
+            }
+
+            // If row validation succeeded, add the entire row to the validDataTypesDataTable
+            if (!rowValidationFailed)
+            {
+                validDataTypesDataTable.Rows.Add(validRowsDataTable.Rows[row].ItemArray);
+            }
+            // If row validation failed, add the entire row data as a comma-separated string to the badRows list
+            else
+            {
+                string badRow = string.Join(",", validRowsDataTable.Rows[row].ItemArray);
+                badRows.Add(badRow);
+            }
+        }
+
+        // Return both results
+        return new DataTypeValidationResult
+        {
+            BadRows = badRows,
+            ValidDataTypesDataTable = validDataTypesDataTable
+        };
+    }
+
+    public async Task<ValidationResultData> ValidatePrimaryKeyAsync(ValidationResultData validationResult, List<EntityColumnDTO> columnsDTO, string tableName)
+    {
+        List<string> badRows = new List<string>();
+        string columnName = string.Empty;
+        DataTable validRowsDataTable = validationResult.SuccessData;
+        DataTable successdata = validRowsDataTable.Clone();
+        List<int> primaryKeyColumns = new List<int>();
+
+        for (int col = 0; col < validRowsDataTable.Columns.Count - 2; col++)
+        {
+            EntityColumnDTO columnDTO = columnsDTO[col];
+            if (columnDTO.ColumnPrimaryKey)
+            {
+                primaryKeyColumns.Add(col);
+                columnName = columnDTO.EntityColumnName; // Set the primary key column name
+            }
+        }
+
+        HashSet<string> seenValues = new HashSet<string>();
+        var ids = await GetAllIdsFromDynamicTable(tableName);
+
+        for (int row = 0; row < validRowsDataTable.Rows.Count; row++)
+        {
+            bool rowValidationFailed = false;
+          //  var badRowData = new List<string>();
+
+            for (int col = 0; col < primaryKeyColumns.Count; col++)
+            {
+                int primaryKeyColumnIndex = primaryKeyColumns[col];
+                string cellData = validRowsDataTable.Rows[row][primaryKeyColumnIndex].ToString();
+
+                if (seenValues.Contains(cellData))
+                {
+                    // Set the flag to indicate validation failure for this row
+                    rowValidationFailed = true;
+                    columnName = columnsDTO[primaryKeyColumnIndex].EntityColumnName;
+                    badRows.Add(string.Join(",", validRowsDataTable.Rows[row].ItemArray)); // Store the row data
+                    break; // Exit the loop as soon as a validation failure is encountered
+                }
+
+                if (ids.Contains(cellData))
+                {
+                    rowValidationFailed = true;
+                    columnName = columnsDTO[primaryKeyColumnIndex].EntityColumnName;
+                    badRows.Add(string.Join(",", validRowsDataTable.Rows[row].ItemArray)); // Store the row data
+                    break;
+                }
+
+                // Store the value for duplicate checking
+                seenValues.Add(cellData);
+            }
+
+            // If row validation succeeded, add the entire row to the successdata DataTable
+            if (!rowValidationFailed)
+            {
+                successdata.Rows.Add(validRowsDataTable.Rows[row].ItemArray);
+            }
+        }
+
+        // Return both bad rows and success data using the custom class
+        return new ValidationResultData { BadRows = badRows, SuccessData = successdata, Column_Name = columnName };
+    }
+
+    public async Task<ValidationResult> resultparams(ValidationResultData validationResult, string comma_separated_string)
+    {
+        string errorMessages = string.Empty;
+        string values = string.Join(",", validationResult.BadRows.Select(row => row.Split(',').Last()));
+        validationResult.BadRows.Insert(0, comma_separated_string);
+        List<string> modifiedRows = validationResult.BadRows.Select(row => row.Substring(0, row.LastIndexOf(','))).ToList();
+        validationResult.BadRows = modifiedRows;
+        string delimiter = ";"; // Specify the delimiter you want
+        string delimiter1 = ","; // Specify the delimiter you want   //chng
+        string baddatas = string.Join(delimiter, validationResult.BadRows);
+        string badcolumns = string.Join(delimiter1, validationResult.errorcolumns);
+        errorMessages = "Null value found in column" + badcolumns;
+        // Return both results
+        return new ValidationResult { ErrorRowNumber = values, Filedatas = baddatas, errorMessages = errorMessages };
+    }
+
+    public async Task<ValidationResult> resultparamsforprimary(ValidationResultData validationResult, string comma_separated_string, string tableName)
+    {
+
+        var badRowsPrimaryKey = validationResult.BadRows;
+
+
+        string columnName = validationResult.Column_Name;
+
+        badRowsPrimaryKey = badRowsPrimaryKey.Where(x => x != "").ToList();
+        string values = string.Join(",", badRowsPrimaryKey.Select(row => row.Split(',').Last()));
+
+        badRowsPrimaryKey.Insert(0, comma_separated_string);
+
+        List<string> modifiedRows = badRowsPrimaryKey.Select(row =>
+        {
+            int lastCommaIndex = row.LastIndexOf(',');
+            if (lastCommaIndex >= 0)
+            {
+                return row.Substring(0, lastCommaIndex);
+            }
+            else
+            {
+                return row; // No comma found, keep the original string
+            }
+        }).Where(row => !string.IsNullOrEmpty(row)).ToList();
+        badRowsPrimaryKey = modifiedRows;
+        string delimiter = ";"; // Specify the delimiter you want
+        string baddatas = string.Join(delimiter, badRowsPrimaryKey);
+        string errorMessages = "Duplicate key value violates unique constraints in column " + columnName + "in" + tableName;
+
+        // Return both results
+        return new ValidationResult { ErrorRowNumber = values, Filedatas = baddatas, errorMessages = errorMessages };
+    }
     public async Task<LogDTO> Createlog(string tableName, List<string> filedata, string fileName, int successdata, List<string> errorMessage, int total_count, List<string> ErrorRowNumber)
 
     {
@@ -1320,7 +1655,7 @@ public class ExcelService : IExcelService
 
     }
 
-public void InsertDataFromDataTableToPostgreSQL(DataTable data, string tableName, List<string> columns, IFormFile file)
+    public void InsertDataFromDataTableToPostgreSQL(DataTable data, string tableName, List<string> columns, IFormFile file)
 
     {
 
@@ -1596,199 +1931,173 @@ public void InsertDataFromDataTableToPostgreSQL(DataTable data, string tableName
         }
     }
 
-    public async Task<ValidationResultData> ValidateNotNull(DataTable excelData, List<EntityColumnDTO> columnsDTO)
+    public async Task<(string TableName, List<dynamic> Rows)> GetTableDataByListEntityId(int listEntityId)
+
     {
-        List<string> badRows = new List<string>();
-        List<string> errorColumnNames = new List<string>();
-        DataTable validRowsDataTable = excelData.Clone(); // Create a DataTable to store valid rows
-
-        for (int row = 0; row < excelData.Rows.Count; row++)
+        // Use Entity Framework Core to get the table name
+        var tableNameEntity = _context.EntityColumnListMetadataModels.FirstOrDefault(mapping => mapping.ListEntityId == listEntityId);
+       
+        if (tableNameEntity == null)
         {
-            bool rowValidationFailed = false;
-
-            string badRow = string.Join(",", excelData.Rows[row].ItemArray);
-
-            for (int col = 0; col < excelData.Columns.Count - 2; col++)
-            {
-                string cellData = excelData.Rows[row][col].ToString();
-                EntityColumnDTO columnDTO = columnsDTO[col];
-
-                if (columnDTO.IsNullable == true && string.IsNullOrEmpty(cellData))
-                {
-                    rowValidationFailed = true;
-                    badRows.Add(badRow);
-                    if (!errorColumnNames.Contains(columnDTO.EntityColumnName))
-                    {
-                        errorColumnNames.Add(columnDTO.EntityColumnName);
-                    }
-
-                    break;
-                }
-            }
-
-            if (!rowValidationFailed)
-            {
-                validRowsDataTable.Rows.Add(excelData.Rows[row].ItemArray);
-            }
+            // Handle the case where the table name is not found
+            return (null, null);
         }
 
-        // Return both results
-        return new ValidationResultData { BadRows = badRows, SuccessData = validRowsDataTable, errorcolumns = errorColumnNames, Column_Name = string.Empty };
-    }
+        // Query the EntityListMetadataModels DbSet to get the EntityName based on the listEntityId
+        var entityNameEntity = _context.EntityListMetadataModels.FirstOrDefault(entity => entity.Id == tableNameEntity.ListEntityId);
 
-    public DataTypeValidationResult ValidateDataTypes(ValidationResultData validationResult, List<EntityColumnDTO> columnsDTO)
-    {
-        List<string> badRows = new List<string>();
-
-        // Access ValidRowsDataTable from the provided ValidationResult
-        DataTable validRowsDataTable = validationResult.SuccessData;
-
-        // Data Type Validation
-        DataTable validDataTypesDataTable = validRowsDataTable.Clone();
-
-        for (int row = 0; row < validRowsDataTable.Rows.Count; row++)
+       
+        if (entityNameEntity == null)
         {
-            bool rowValidationFailed = false;
-
-            for (int col = 0; col < validRowsDataTable.Columns.Count - 2; col++)
-            {
-                string cellData = validRowsDataTable.Rows[row][col].ToString();
-                EntityColumnDTO columnDTO = columnsDTO[col];
-
-
-            }
-
-            // If row validation succeeded, add the entire row to the validDataTypesDataTable
-            if (!rowValidationFailed)
-            {
-                validDataTypesDataTable.Rows.Add(validRowsDataTable.Rows[row].ItemArray);
-            }
-            // If row validation failed, add the entire row data as a comma-separated string to the badRows list
-            else
-            {
-                string badRow = string.Join(",", validRowsDataTable.Rows[row].ItemArray);
-                badRows.Add(badRow);
-            }
+            // Handle the case where the EntityName is not found
+            return (null, null);
         }
 
-        // Return both results
-        return new DataTypeValidationResult
-        {
-            BadRows = badRows,
-            ValidDataTypesDataTable = validDataTypesDataTable
-        };
-    }
+        string tableName = entityNameEntity.EntityName;
 
-    public async Task<ValidationResultData> ValidatePrimaryKeyAsync(ValidationResultData validationResult, List<EntityColumnDTO> columnsDTO, string tableName)
-    {
-        List<string> badRows = new List<string>();
-        string columnName = string.Empty;
-        DataTable validRowsDataTable = validationResult.SuccessData;
-        DataTable successdata = validRowsDataTable.Clone();
-        List<int> primaryKeyColumns = new List<int>();
-
-        for (int col = 0; col < validRowsDataTable.Columns.Count - 2; col++)
+        try
         {
-            EntityColumnDTO columnDTO = columnsDTO[col];
-            if (columnDTO.ColumnPrimaryKey)
+            using (IDbConnection dbConnection = new NpgsqlConnection(_dbConnection.ConnectionString))
             {
-                primaryKeyColumns.Add(col);
-                columnName = columnDTO.EntityColumnName; // Set the primary key column name
+                dbConnection.Open();
+
+                // Dynamically query the table based on the provided table name
+                string rowDataQuery = $"SELECT * FROM public.\"{tableName}\"";
+
+                // Use Dapper to execute the query and return the results
+                var rows = dbConnection.Query(rowDataQuery).ToList();
+
+
+                return (tableName, rows);
             }
         }
-
-        HashSet<string> seenValues = new HashSet<string>();
-        var ids = await GetAllIdsFromDynamicTable(tableName);
-
-        for (int row = 0; row < validRowsDataTable.Rows.Count; row++)
+        catch (Exception ex)
         {
-            bool rowValidationFailed = false;
-            var badRowData = new List<string>();
-
-            for (int col = 0; col < primaryKeyColumns.Count; col++)
-            {
-                int primaryKeyColumnIndex = primaryKeyColumns[col];
-                string cellData = validRowsDataTable.Rows[row][primaryKeyColumnIndex].ToString();
-
-                if (seenValues.Contains(cellData))
-                {
-                    // Set the flag to indicate validation failure for this row
-                    rowValidationFailed = true;
-                    break; // Exit the loop as soon as a validation failure is encountered
-                }
-
-                if (ids.Contains(cellData))
-                {
-                    rowValidationFailed = true;
-                    columnName = columnsDTO[primaryKeyColumnIndex].EntityColumnName;
-                    badRows.Add(string.Join(",", validRowsDataTable.Rows[row].ItemArray)); // Store the row data
-                    break;
-                }
-
-                // Store the value for duplicate checking
-                seenValues.Add(cellData);
-            }
-
-            // If row validation succeeded, add the entire row to the successdata DataTable
-            if (!rowValidationFailed)
-            {
-                successdata.Rows.Add(validRowsDataTable.Rows[row].ItemArray);
-            }
+            Console.WriteLine($"An error occurred in GetTableDataByListEntityId: {ex.Message}");
+            throw;
         }
 
-        // Return both bad rows and success data using the custom class
-        return new ValidationResultData { BadRows = badRows, SuccessData = successdata, Column_Name = columnName };
     }
 
-    public async Task<ValidationResult> resultparams(ValidationResultData validationResult, string comma_separated_string)
+    public async Task<(string TableName, List<dynamic> Rows)> GetTableDataByEntityId(int entityId)
     {
-        string errorMessages = string.Empty;
-        string values = string.Join(",", validationResult.BadRows.Select(row => row.Split(',').Last()));
-        validationResult.BadRows.Insert(0, comma_separated_string);
-        List<string> modifiedRows = validationResult.BadRows.Select(row => row.Substring(0, row.LastIndexOf(','))).ToList();
-        validationResult.BadRows = modifiedRows;
-        string delimiter = ";"; // Specify the delimiter you want
-        string delimiter1 = ","; // Specify the delimiter you want   //chng
-        string baddatas = string.Join(delimiter, validationResult.BadRows);
-        string badcolumns = string.Join(delimiter1, validationResult.errorcolumns);
-        errorMessages = "Null value found in column" + badcolumns;
-        // Return both results
-        return new ValidationResult { ErrorRowNumber = values, Filedatas = baddatas, errorMessages = errorMessages };
-    }
+        // Use Entity Framework Core to get the table name
+        var tableNameEntity = await _context.EntityColumnListMetadataModels
+            .FirstOrDefaultAsync(mapping => mapping.EntityId == entityId);
 
-    public async Task<ValidationResult> resultparamsforprimary(ValidationResultData validationResult, string comma_separated_string, string tableName)
-    {
-
-        var badRowsPrimaryKey = validationResult.BadRows;
-
-
-        string columnName = validationResult.Column_Name;
-
-        badRowsPrimaryKey = badRowsPrimaryKey.Where(x => x != "").ToList();
-        string values = string.Join(",", badRowsPrimaryKey.Select(row => row.Split(',').Last()));
-
-        badRowsPrimaryKey.Insert(0, comma_separated_string);
-
-        List<string> modifiedRows = badRowsPrimaryKey.Select(row =>
+        if (tableNameEntity == null)
         {
-            int lastCommaIndex = row.LastIndexOf(',');
-            if (lastCommaIndex >= 0)
-            {
-                return row.Substring(0, lastCommaIndex);
-            }
-            else
-            {
-                return row; // No comma found, keep the original string
-            }
-        }).Where(row => !string.IsNullOrEmpty(row)).ToList();
-        badRowsPrimaryKey = modifiedRows;
-        string delimiter = ";"; // Specify the delimiter you want
-        string baddatas = string.Join(delimiter, badRowsPrimaryKey);
-        string errorMessages = "Duplicate key value violates unique constraints in column " + columnName + "in" + tableName;
+            // Handle the case where the table name is not found
+            return (null, null);
+        }
 
-        // Return both results
-        return new ValidationResult { ErrorRowNumber = values, Filedatas = baddatas, errorMessages = errorMessages };
+        // Query the EntityListMetadataModels DbSet to get the EntityName based on the entityId
+        var entityNameEntity = await _context.EntityListMetadataModels
+            .FirstOrDefaultAsync(entity => entity.Id == tableNameEntity.EntityId);
+
+        if (entityNameEntity == null)
+        {
+            // Handle the case where the EntityName is not found
+            return (null, null);
+        }
+
+        string tableName1 = entityNameEntity.EntityName;
+
+        try
+        {
+            using (IDbConnection dbConnection = new NpgsqlConnection(_dbConnection.ConnectionString))
+            {
+                dbConnection.Open();
+
+                // Dynamically query the table based on the provided table name
+                string rowDataQuery = $"SELECT * FROM public.\"{tableName1}\"";
+
+                // Use Dapper to execute the query and return the results
+                var rows1 = dbConnection.Query(rowDataQuery).ToList();
+
+                return (tableName1, rows1);
+            }
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"An error occurred in GetTableDataByEntityId: {ex.Message}");
+            throw;
+        }
     }
+
+
+    public (int EntityId, string EntityColumnName) GetAllEntityColumnData(int checklistEntityValue)
+    {
+        List<EntityColumnDTO> allData = _context.EntityColumnListMetadataModels
+            .Select(c => (EntityColumnDTO)c)
+            .AsEnumerable()  // Bring data into memory
+            .Where(c => c.Id == checklistEntityValue)
+            .ToList();
+
+        if (allData.Count > 0)
+        {
+            // Return the EntityId and EntityColumnName of the first item in the list
+            return (allData[0].EntityId, allData[0].EntityColumnName);
+        }
+        else
+        {
+            // Return default values or handle as needed
+            return (0, string.Empty);
+        }
+    }
+
+
+    public (string TableName, List<dynamic> Rows) GetTableDataByChecklistEntityValue(int checklistEntityValue)
+    {
+        // Get the EntityId and EntityColumnName using the provided method
+        var (entityId, entityColumnName) = GetAllEntityColumnData(checklistEntityValue);
+
+        if (entityId == 0 || string.IsNullOrEmpty(entityColumnName))
+        {
+            // Handle the case where the EntityId or EntityColumnName is not found
+            return (null, null);
+        }
+
+        // Use Entity Framework Core to get the table name
+        var entityListMetadata = _context.EntityListMetadataModels.FirstOrDefault(entity => entity.Id == entityId);
+
+        if (entityListMetadata == null)
+        {
+            // Log or print debug information
+            Console.WriteLine($"No entity metadata found for EntityId: {entityId}");
+            return (null, null);
+        }
+
+        string tableName = entityListMetadata.EntityName;
+
+        try
+        {
+            using (IDbConnection dbConnection = new NpgsqlConnection(_dbConnection.ConnectionString))
+            {
+                dbConnection.Open();
+
+                // Dynamically query the table based on the provided table name and EntityColumnName
+                string rowDataQuery = $"SELECT \"{entityColumnName}\" FROM public.\"{tableName}\"";
+
+                // Use Dapper to execute the query and return the results
+                var rows = dbConnection.Query(rowDataQuery).ToList();
+
+                return (tableName, rows);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"An error occurred in GetTableDataByChecklistEntityValue: {ex.Message}");
+            throw;
+        }
+    }
+
+
+
+
+
+
 
 }
 
