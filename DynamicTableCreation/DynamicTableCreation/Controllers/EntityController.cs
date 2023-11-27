@@ -18,8 +18,9 @@ namespace ExcelGeneration.Controllers
         private readonly EntityService _dynamicDbService;
         private readonly IEntitylistService _entitylistService;
         protected APIResponse _response;
-        private readonly ViewService _viewService;
-        public EntityController(EntityService dynamicDbService, IEntitylistService entitylistService, ViewService viewService)
+        //private readonly ViewService _viewService;
+        private readonly IViewService _viewService;
+        public EntityController(EntityService dynamicDbService, IEntitylistService entitylistService, IViewService viewService)
         {
             _dynamicDbService = dynamicDbService;
             _entitylistService = entitylistService;

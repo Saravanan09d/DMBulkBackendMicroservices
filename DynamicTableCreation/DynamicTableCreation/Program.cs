@@ -25,7 +25,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<EntityService>();
 builder.Services.AddScoped<EntitylistService>();
-builder.Services.AddScoped<ViewService>();
+builder.Services.AddScoped<IViewService, ViewService>();
 builder.Services.AddScoped<IEntitylistService, EntitylistService>();
 var app = builder.Build();
 if (app.Environment.IsDevelopment())

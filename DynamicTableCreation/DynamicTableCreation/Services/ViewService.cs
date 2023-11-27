@@ -1,6 +1,7 @@
 ﻿using Dapper;
 using DynamicTableCreation.Data;
 using DynamicTableCreation.Models.DTO;
+using DynamicTableCreation.Services.Interface;
 using Microsoft.Data.SqlClient;
 using Npgsql;
 using System.Data;
@@ -8,7 +9,7 @@ using System.Data.Common;
 
 namespace DynamicTableCreation.Services
 {
-    public class ViewService
+    public class ViewService : IViewService
     {
         private readonly ApplicationDbContext _context;
         private readonly IDbConnection _dbConnection;
