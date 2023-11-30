@@ -29,7 +29,6 @@ namespace ExcelGeneration.Services.Interface
         public Task<ValidationResult> resultparams(ValidationResultData validationResult, string comma_separated_string);
         public Task<ValidationResult> resultparamsforprimary(ValidationResultData validationResult, string comma_separated_string, string tableName);
         public Task<(string TableName, List<dynamic> Rows)> GetTableDataByListEntityId(int listEntityId);
-        //  public List<EntityColumnDTO> GetAllEntityColumnData(int checklistEntityValue);
 
         public (int EntityId, string EntityColumnName) GetAllEntityColumnData(int checklistEntityValue);
 
