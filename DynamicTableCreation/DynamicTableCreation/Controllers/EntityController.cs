@@ -56,6 +56,7 @@ namespace ExcelGeneration.Controllers
                     };
                     return BadRequest(response);
                 }
+
                 var tableCreationRequest = _dynamicDbService.MapToModel(request);
                 bool tableCreated = await _dynamicDbService.CreateDynamicTableAsync(tableCreationRequest);
                 if (tableCreated)
