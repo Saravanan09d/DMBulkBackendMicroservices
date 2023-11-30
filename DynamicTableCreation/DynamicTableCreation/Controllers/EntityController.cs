@@ -58,7 +58,6 @@ namespace ExcelGeneration.Controllers
                 }
                 var tableCreationRequest = _dynamicDbService.MapToModel(request);
                 bool tableCreated = await _dynamicDbService.CreateDynamicTableAsync(tableCreationRequest);
-
                 if (tableCreated)
                 {
                     var response = new APIResponse
@@ -169,6 +168,7 @@ namespace ExcelGeneration.Controllers
                 });
             }
         }
+
         [HttpPost("updateEntityColumn")]
         public IActionResult UpdateEntityColumn([FromBody] UpdateEntityColumnRequestModel request)
         {
@@ -258,8 +258,6 @@ namespace ExcelGeneration.Controllers
             }
         }
 
-
-
         [EnableCors("AllowAngularDev")]
         [HttpPost("api/entity/has-values")]
         public async Task<ActionResult<IDictionary<string, bool>>> CheckTablesHaveValues([FromBody] List<string> tableNames)
@@ -283,7 +281,6 @@ namespace ExcelGeneration.Controllers
                 });
             }
         }
-
     }
 }
 
