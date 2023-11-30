@@ -86,6 +86,7 @@ namespace DynamicTableCreation.Services
             }
         }
 
+
         private async Task<EntityListMetadataModel> CreateTableMetadataAsync(TableCreationRequest request)
         {
             var lowerCaseTableName = request.TableName.ToLower();
@@ -194,6 +195,79 @@ namespace DynamicTableCreation.Services
                 return "TableNotFound";
             }
         }
+        private string GetColumnNameForListKeyId(int listEntityKey)
+        {
+            try
+            {
+                // Assuming EntityColumnListMetadataModels is the DbSet in your DbContext
+                var column = _dbContext.EntityColumnListMetadataModels
+                    .FirstOrDefault(e => e.ListEntityKey == listEntityKey);
+
+                if (column != null)
+                {
+                    // Check if EntityColumnName is not null or empty before returning
+                    if (!string.IsNullOrEmpty(column.EntityColumnName))
+                    {
+                        return column.EntityColumnName;
+                    }
+                }
+
+                return "ColumnNotFound";
+            }
+            catch (Exception ex)
+            {
+                // Handle or log the exception as needed
+                Console.WriteLine($"An error occurred while getting column name: {ex.Message}");
+                return "ColumnNotFound";
+            }
+        }
+        private string GetDatatypeForListEntityKey(int listEntityKey)
+        {
+            try
+            {
+                // Assuming EntityColumnListMetadataModels is the DbSet in your DbContext
+                var column = _dbContext.EntityColumnListMetadataModels
+                    .FirstOrDefault(e => e.ListEntityKey == listEntityKey);
+
+                if (column != null)
+                {
+                    // Check if Datatype is not null or empty before returning
+                    if (!string.IsNullOrEmpty(column.Datatype))
+                    {
+                        // Convert the datatype to a standardized form
+                        return ConvertToStandardDatatype(column.Datatype);
+                    }
+                }
+
+                return "DatatypeNotFound";
+            }
+            catch (Exception ex)
+            {
+                // Handle or log the exception as needed
+                Console.WriteLine($"An error occurred while getting datatype: {ex.Message}");
+                return "DatatypeNotFound";
+            }
+        }
+
+        private string ConvertToStandardDatatype(string originalDatatype)
+        {
+            switch (originalDatatype.ToLower())
+            {
+                case "int":
+                case "integer":
+                    return "integer";
+
+                case "string":
+                case "varchar":
+                    return "varchar";
+
+                // Add more cases as needed for other datatypes
+
+                default:
+                    return "UnknownDatatype";
+            }
+        }
+
 
 
         private string GenerateCreateTableSql(TableCreationRequest request)
@@ -228,13 +302,15 @@ namespace DynamicTableCreation.Services
                             break;
                         case "listofvalue":
                             var referencedTableName = GetTableNameForListEntityId(column.ListEntityId);
+                            var referanceKeyName = GetColumnNameForListKeyId(column.ListEntityKey);
+                            var referanceEntityValue = GetDatatypeForListEntityKey(column.ListEntityKey);
                             if (!string.IsNullOrEmpty(referencedTableName))
                             {
-                                createTableSql += $"integer REFERENCES \"{referencedTableName}\"(\"Id\") NOT NULL";
+                                createTableSql += $"{referanceEntityValue} REFERENCES \"{referencedTableName}\"(\"{referanceKeyName}\") NOT NULL";
                             }
                             else
                             {
-                                createTableSql += "integer";
+                                createTableSql += "varchar";
                             }
                             break;
                         case "boolean":
@@ -361,29 +437,21 @@ namespace DynamicTableCreation.Services
         {
             try
             {
-                // Find the records associated with the entityId
                 var recordsToDelete = _dbContext.EntityColumnListMetadataModels
                     .Where(e => e.EntityId == entityId)
                     .ToList();
-
-                // Delete the records
                 _dbContext.EntityColumnListMetadataModels.RemoveRange(recordsToDelete);
-
-                // Save changes to the database
                 _dbContext.SaveChanges();
             }
             catch (Exception ex)
             {
-                // Handle or log the exception as needed
                 Console.WriteLine($"An error occurred while deleting old values: {ex.Message}");
             }
         }
 
 
-
         private void UpdateExistingColumn(EntityColumnListMetadataModel existingColumn, EntityColumnProperties newColumn)
         {
-            // Update properties of the existing column
             existingColumn.Datatype = newColumn.Datatype;
             existingColumn.Length = newColumn.Length;
             existingColumn.MinLength = newColumn.MinLength;
@@ -429,7 +497,6 @@ namespace DynamicTableCreation.Services
                 CreatedDate = DateTime.UtcNow,
                 UpdatedDate = DateTime.UtcNow,
             };
-
             existingEntity.EntityColumns.Add(entityColumn);
         }
         private ColumnDefinition ConvertToColumnDefinition(EntityColumnProperties entityColumn)
@@ -470,7 +537,35 @@ namespace DynamicTableCreation.Services
                 // Log or handle the case where the table doesn't exist
             }
         }
-        // In your service class
+
+        //private void DropTables(string oldEntityName)
+        //{
+        //    try
+        //    {
+        //        // Assuming _dbContext is your DbContext instance
+        //        var tableExists = _dbContext.EntityListMetadataModels
+        //            .FromSqlRaw("SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = {0}", oldEntityName)
+        //            .Any();
+
+        //        // Check if the table exists before attempting to drop it
+        //        if (tableExists)
+        //        {
+        //            // Execute raw SQL command to drop the table
+        //            _dbContext.Database.ExecuteSqlRaw($"DROP TABLE IF EXISTS {oldEntityName} CASCADE;");
+        //        }
+        //        else
+        //        {
+        //            Console.WriteLine($"Table '{oldEntityName}' does not exist.");
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        // Handle or log the exception as needed
+        //        Console.WriteLine($"An error occurred while dropping the table: {ex.Message}");
+        //    }
+        //}
+
+
         public async Task<IDictionary<string, bool>> TablesHaveValuesAsync(List<string> tableNames)
         {
             var tablesWithValues = new Dictionary<string, bool>();
@@ -482,7 +577,6 @@ namespace DynamicTableCreation.Services
                     var tableExists = await TableExistsAsync(tableName);
                     if (!tableExists)
                     {
-                        // If the table doesn't exist, consider it as having no values
                         tablesWithValues.Add(tableName, false);
                         continue;
                     }
@@ -491,7 +585,6 @@ namespace DynamicTableCreation.Services
                     var tableHasValues = await _dbContext.EntityListMetadataModels
                         .FromSqlRaw(sql)
                         .AnyAsync();
-
                     tablesWithValues.Add(tableName, tableHasValues);
                 }
 
@@ -499,10 +592,7 @@ namespace DynamicTableCreation.Services
             }
             catch (Exception ex)
             {
-                // Log or handle the exception as needed
                 Console.WriteLine($"An error occurred while checking if tables have values: {ex.Message}");
-
-                // Return an empty result indicating an error
                 return new Dictionary<string, bool>();
             }
         }
@@ -512,39 +602,27 @@ namespace DynamicTableCreation.Services
         {
             try
             {
-                // Fetch EntityName based on ListEntityId
                 var entityName = await _dbContext.EntityListMetadataModels
                     .Where(entity => entity.Id == ListEntityId)
                     .Select(entity => entity.EntityName)
                     .FirstOrDefaultAsync();
-
-                // Fetch EntityColumnName based on ListEntityKey
                 var entityKeyColumnName = await _dbContext.EntityColumnListMetadataModels
                     .Where(column => column.Id == ListEntityKey)
                     .Select(column => column.EntityColumnName)
                     .FirstOrDefaultAsync();
-
-                // Fetch EntityColumnName based on ListEntityValue
                 var entityValueColumnName = await _dbContext.EntityColumnListMetadataModels
                     .Where(column => column.Id == ListEntityValue)
                     .Select(column => column.EntityColumnName)
                     .FirstOrDefaultAsync();
-
-                // Check if any of the data is null (not found) and handle accordingly
                 if (entityName != null && entityKeyColumnName != null && entityValueColumnName != null)
                 {
                     return (entityName, entityKeyColumnName, entityValueColumnName);
                 }
-
-                // Return default values or handle the case where no data is found
                 return (string.Empty, string.Empty, string.Empty);
             }
             catch (Exception ex)
             {
-                // Log or handle the exception as needed
                 Console.WriteLine($"An error occurred while fetching entity data: {ex.Message}");
-
-                // Return default values or handle the error according to your requirements
                 return (string.Empty, string.Empty, string.Empty);
             }
         }

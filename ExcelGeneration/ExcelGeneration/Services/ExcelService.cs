@@ -12,7 +12,11 @@ using Dapper;
 using System.Text;
 using System.Drawing;
 using ExcelGeneration.Services;
+using System.Text.RegularExpressions;
+using Microsoft.Data.SqlClient;
+using System.Runtime.InteropServices;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
+
 
 public class ExcelService : IExcelService
 {
@@ -331,6 +335,7 @@ public class ExcelService : IExcelService
             throw;
         }
     }
+
     private void HighlightDuplicates(Worksheet sheet, int columnNumber, int startRow, int endRow)
     {
         string columnLetter = GetExcelColumnName(columnNumber);
@@ -358,6 +363,26 @@ public class ExcelService : IExcelService
             }
             for (int col = 1; col <= columnCount; col++)
             {
+
+                var forbiddenCharactersRegex = new Regex("[,;]");
+
+                // Check if the cell value contains commas or semicolons
+                var hasForbiddenCharacters = forbiddenCharactersRegex.IsMatch(columnNamesWorksheet.Range[startRow, col, endRow, col].Text);
+
+                if (hasForbiddenCharacters)
+                {
+                    // Apply formatting or show an error message for cells with forbidden characters
+                    // For example, you can highlight the cell or display a message
+                    var errorCell = columnNamesWorksheet.Range[startRow, col, endRow, col];
+                    errorCell.Style.FillPattern = ExcelPatternType.Solid;
+                    errorCell.Style.KnownColor = ExcelColors.Yellow;
+                    // Add a comment to the cell
+                    //var comment = errorCell.AddComment("Cell cannot contain commas or semicolons", "Author");
+
+                    // You can also throw an exception or handle the error in your preferred way
+                    throw new InvalidOperationException("Cell cannot contain commas or semicolons");
+                }
+
                 // Get the data type for the current column
                 string dataType = columns[col - 1].Datatype;
                 int length = columns[col - 1].Length;
@@ -633,13 +658,6 @@ public class ExcelService : IExcelService
                     }
                 }
             }
-            //for (int i = 3; i <= 65537; i++)
-            //{
-            //    string startindex = letter + i.ToString();
-            //    string endindex = lastletter + i.ToString();
-            //    CellRange lockrange = columnNamesWorksheet.Range[startindex + ":" + endindex];
-            //    lockrange.Style.Locked = false;
-            //}
             for (int i = 3; i <= 65537; i++)
             {
                 string startindex = letter + i.ToString();
