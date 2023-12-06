@@ -120,34 +120,31 @@ public class ExcelService : IExcelService
                 worksheet.Range[i + 3, 10].Text = column.DateMaxValue;
             }
 
-
-
-
-            worksheet.Range[i + 3, 9].Text = column.DateMaxValue.ToString();
-            worksheet.Range[i + 3, 10].Text = column.Description;
-            worksheet.Range[i + 3, 11].Text = column.IsNullable.ToString();
+            worksheet.Range[i + 3, 10].Text = column.DateMaxValue.ToString();
+            worksheet.Range[i + 3, 11].Text = column.Description;
+            worksheet.Range[i + 3, 12].Text = column.IsNullable.ToString();
             if (column.Datatype.ToLower() == "boolean")
             {
                 if (column.DefaultValue.ToLower() == "true")
                 {
-                    worksheet.Range[i + 3, 12].Text = column.True;
+                    worksheet.Range[i + 3, 13].Text = column.True;
                 }
                 else if (column.DefaultValue.ToLower() == "false")
                 {
-                    worksheet.Range[i + 3, 12].Text = column.False;
+                    worksheet.Range[i + 3, 13].Text = column.False;
                 }
             }
             else
             {
-                worksheet.Range[i + 3, 12].Text = column.DefaultValue.ToString();
+                worksheet.Range[i + 3, 13].Text = column.DefaultValue.ToString();
             }
 
-            worksheet.Range[i + 3, 13].Text = column.ColumnPrimaryKey.ToString();
-            worksheet.Range[i + 3, 14].Text = column.True.ToString();
-            worksheet.Range[i + 3, 15].Text = column.False.ToString();
-            worksheet.Range[i + 3, 16].Text = column.ListEntityId.ToString();
-            worksheet.Range[i + 3, 17].Text = column.ListEntityKey.ToString();
-            worksheet.Range[i + 3, 18].Text = column.ListEntityValue.ToString();
+            worksheet.Range[i + 3, 14].Text = column.ColumnPrimaryKey.ToString();
+            worksheet.Range[i + 3, 15].Text = column.True.ToString();
+            worksheet.Range[i + 3, 16].Text = column.False.ToString();
+            worksheet.Range[i + 3, 17].Text = column.ListEntityId.ToString();
+            worksheet.Range[i + 3, 18].Text = column.ListEntityKey.ToString();
+            worksheet.Range[i + 3, 19].Text = column.ListEntityValue.ToString();
 
 
             var lastRowIndex1 = worksheet.Rows.Length;
