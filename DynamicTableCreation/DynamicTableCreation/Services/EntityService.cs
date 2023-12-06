@@ -12,7 +12,6 @@ namespace DynamicTableCreation.Services
         {
             _dbContext = dbContext;
         }
-
         public async Task<bool> TableExistsAsync(string tableName)
         {
             try
@@ -185,7 +184,6 @@ namespace DynamicTableCreation.Services
                         return entity.EntityName;
                     }
                 }
-
                 return "TableNotFound";
             }
             catch (Exception ex)
@@ -267,9 +265,6 @@ namespace DynamicTableCreation.Services
                     return "UnknownDatatype";
             }
         }
-
-
-
         private string GenerateCreateTableSql(TableCreationRequest request)
         {
             try
@@ -537,33 +532,6 @@ namespace DynamicTableCreation.Services
                 // Log or handle the case where the table doesn't exist
             }
         }
-
-        //private void DropTables(string oldEntityName)
-        //{
-        //    try
-        //    {
-        //        // Assuming _dbContext is your DbContext instance
-        //        var tableExists = _dbContext.EntityListMetadataModels
-        //            .FromSqlRaw("SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = {0}", oldEntityName)
-        //            .Any();
-
-        //        // Check if the table exists before attempting to drop it
-        //        if (tableExists)
-        //        {
-        //            // Execute raw SQL command to drop the table
-        //            _dbContext.Database.ExecuteSqlRaw($"DROP TABLE IF EXISTS {oldEntityName} CASCADE;");
-        //        }
-        //        else
-        //        {
-        //            Console.WriteLine($"Table '{oldEntityName}' does not exist.");
-        //        }
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        // Handle or log the exception as needed
-        //        Console.WriteLine($"An error occurred while dropping the table: {ex.Message}");
-        //    }
-        //}
 
 
         public async Task<IDictionary<string, bool>> TablesHaveValuesAsync(List<string> tableNames)

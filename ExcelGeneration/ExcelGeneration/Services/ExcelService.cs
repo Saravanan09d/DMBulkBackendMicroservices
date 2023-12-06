@@ -12,25 +12,25 @@ using Dapper;
 using System.Text;
 using System.Drawing;
 using ExcelGeneration.Services;
-using System.Text.RegularExpressions;
-using Microsoft.Data.SqlClient;
-using System.Runtime.InteropServices;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
-
+using OfficeOpenXml.DataValidation;
+using Spire.Xls.Core;
+using System.Reflection;
+using Microsoft.AspNetCore.Mvc.Rendering;
 
 public class ExcelService : IExcelService
 {
-  
+
     private readonly ApplicationDbContext _context;
     private readonly IDbConnection _dbConnection;
     private readonly ExportExcelService _exportExcelService;
-   
+
     public ExcelService(ApplicationDbContext context, IDbConnection dbConnection, ExportExcelService exportExcelService)
     {
         _context = context;
         _dbConnection = dbConnection;
         _exportExcelService = exportExcelService;
- 
+
     }
     public byte[] GenerateExcelFile(List<EntityColumnDTO> columns, int? parentId)
     {
@@ -50,17 +50,19 @@ public class ExcelService : IExcelService
         worksheet.Range["D2"].Text = "Length";
         worksheet.Range["E2"].Text = "MinLength";
         worksheet.Range["F2"].Text = "MaxLength";
-        worksheet.Range["G2"].Text = "DateMinValue";
-        worksheet.Range["H2"].Text = "DateMaxValue";
-        worksheet.Range["I2"].Text = "Description";
-        worksheet.Range["J2"].Text = "Blank Not Allowed";
-        worksheet.Range["K2"].Text = "Default Value";
-        worksheet.Range["L2"].Text = "Unique Value";
-        worksheet.Range["M2"].Text = "Option1";
-        worksheet.Range["N2"].Text = "Option2";
-        worksheet.Range["O2"].Text = "ListEntityID";
-        worksheet.Range["P2"].Text = "ListEntityKey";
-        worksheet.Range["Q2"].Text = "ListEntityValue";
+        worksheet.Range["G2"].Text = "MinRange";
+        worksheet.Range["H2"].Text = "MaxRange";
+        worksheet.Range["I2"].Text = "DateMinValue";
+        worksheet.Range["J2"].Text = "DateMaxValue";
+        worksheet.Range["K2"].Text = "Description";
+        worksheet.Range["L2"].Text = "Blank Not Allowed";
+        worksheet.Range["M2"].Text = "Default Value";
+        worksheet.Range["N2"].Text = "Unique Value";
+        worksheet.Range["O2"].Text = "Option1";
+        worksheet.Range["P2"].Text = "Option2";
+        worksheet.Range["Q2"].Text = "ListEntityID";
+        worksheet.Range["R2"].Text = "ListEntityKey";
+        worksheet.Range["S2"].Text = "ListEntityValue";
 
         // Populate the first sheet with column details
         for (int i = 0; i < columns.Count; i++)
@@ -88,45 +90,62 @@ public class ExcelService : IExcelService
                 worksheet.Range[i + 3, 6].Text = column.MaxLength.ToString();
             }
 
-
-            if (string.IsNullOrEmpty(column.DateMinValue) && string.IsNullOrEmpty(column.DateMaxValue))
+            if (column.MinRange == null || column.MinRange == 0)
             {
                 worksheet.Range[i + 3, 7].Text = string.Empty;
+            }
+            else
+            {
+                worksheet.Range[i + 3, 7].Text = column.MinRange.ToString();
+            }
+
+            if (column.MaxRange == 0)
+            {
                 worksheet.Range[i + 3, 8].Text = string.Empty;
             }
             else
             {
-                worksheet.Range[i + 3, 7].Text = column.DateMinValue;
-                worksheet.Range[i + 3, 8].Text = column.DateMaxValue;
+                worksheet.Range[i + 3, 8].Text = column.MaxRange.ToString();
             }
 
-       
+            if (string.IsNullOrEmpty(column.DateMinValue) && string.IsNullOrEmpty(column.DateMaxValue))
+            {
+                worksheet.Range[i + 3, 9].Text = string.Empty;
+                worksheet.Range[i + 3, 10].Text = string.Empty;
+            }
+            else
+            {
+                worksheet.Range[i + 3, 9].Text = column.DateMinValue;
+                worksheet.Range[i + 3, 10].Text = column.DateMaxValue;
+            }
 
-            worksheet.Range[i + 3, 8].Text = column.DateMaxValue.ToString();
-            worksheet.Range[i + 3, 9].Text = column.Description;
-            worksheet.Range[i + 3, 10].Text = column.IsNullable.ToString();
+
+
+            worksheet.Range[i + 3, 9].Text = column.DateMaxValue.ToString();
+            worksheet.Range[i + 3, 10].Text = column.Description;
+            worksheet.Range[i + 3, 11].Text = column.IsNullable.ToString();
             if (column.Datatype.ToLower() == "boolean")
             {
                 if (column.DefaultValue.ToLower() == "true")
                 {
-                    worksheet.Range[i + 3, 11].Text = column.True;
+                    worksheet.Range[i + 3, 12].Text = column.True;
                 }
                 else if (column.DefaultValue.ToLower() == "false")
                 {
-                    worksheet.Range[i + 3, 11].Text = column.False;
+                    worksheet.Range[i + 3, 12].Text = column.False;
                 }
             }
             else
             {
-                worksheet.Range[i + 3, 11].Text = column.DefaultValue.ToString();
+                worksheet.Range[i + 3, 12].Text = column.DefaultValue.ToString();
             }
-            worksheet.Range[i + 3, 12].Text = column.ColumnPrimaryKey.ToString();
-            worksheet.Range[i + 3, 13].Text = column.True.ToString();
-            worksheet.Range[i + 3, 14].Text = column.False.ToString();
-            worksheet.Range[i + 3, 15].Text = column.ListEntityId.ToString();
-            worksheet.Range[i + 3, 16].Text = column.ListEntityKey.ToString();
-            worksheet.Range[i + 3, 17].Text = column.ListEntityValue.ToString();
-          
+            worksheet.Range[i + 3, 13].Text = column.ColumnPrimaryKey.ToString();
+            worksheet.Range[i + 3, 14].Text = column.True.ToString();
+            worksheet.Range[i + 3, 15].Text = column.False.ToString();
+            worksheet.Range[i + 3, 16].Text = column.ListEntityId.ToString();
+            worksheet.Range[i + 3, 17].Text = column.ListEntityKey.ToString();
+            worksheet.Range[i + 3, 18].Text = column.ListEntityValue.ToString();
+
             var lastRowIndex1 = worksheet.Rows.Length;
             worksheet.Range[lastRowIndex1 + 1, 1].Text = (i + 2).ToString();
             worksheet.Range[lastRowIndex1 + 1, 1].Style.HorizontalAlignment = HorizontalAlignType.Right;
@@ -167,63 +186,6 @@ public class ExcelService : IExcelService
             columnNamesWorksheet.Range[2, i + 1].Text = column.EntityColumnName;
             int entityId = GetEntityIdByEntityName(column.entityname);
             columnNamesWorksheet.Range["A1"].Text = entityId.ToString();
-
-            // Check if the current column has a data type of "ListOfValues"
-            bool isListOfValuesColumn = string.Equals(column.Datatype, "listofvalue", StringComparison.OrdinalIgnoreCase);
-
-            // If it's a "ListOfValues" column, you can take some action
-            if (isListOfValuesColumn)
-            {
-                int checklistEntityValue = column.ListEntityValue;
-                var (entityIds, entityColumnName) = GetAllEntityColumnData(checklistEntityValue);
-
-                var result = GetTableDataByChecklistEntityValue(checklistEntityValue);
-                (string tableName, List<dynamic> rows) = result;
-                if (tableName != null && rows != null && rows.Any())
-                {
-                    // Add a worksheet for the row data
-                    Worksheet rowDataWorksheet = workbook.Worksheets.Add($"Data_{tableName}");
-
-                    // Set the starting cell to populate the row data
-                    int startRow = 1;
-                    int startColumn = 1;
-
-                    // Get column names dynamically from the rowData
-                    var rowDataColumns = (rows.First() as IDictionary<string, object>)?.Keys.ToList();
-
-                    // Populate the first row with column names
-                    if (rowDataColumns != null)
-                    {
-                        for (int j = 0; j < rowDataColumns.Count; j++)
-                        {
-                            rowDataWorksheet.Range[startRow, startColumn + j].Text = rowDataColumns[j];
-                        }
-                    }
-
-                    // Populate the remaining rows with row data
-                    int rowIndex = 0; // Use a different variable name to avoid conflict
-                    for (; rowIndex < rows.Count; rowIndex++)
-                    {
-                        var rowData = rows[rowIndex] as IDictionary<string, object>;
-
-                        // Loop through columns to populate data
-                        for (int j = 0; j < rowDataColumns.Count; j++)
-                        {
-                            var columnName = rowDataColumns[j];
-                            var cellValue = rowData[columnName]?.ToString();
-                            rowDataWorksheet.Range[startRow + rowIndex + 1, startColumn + j].Text = cellValue ?? "";
-                        }
-                    }
-                }
-                // For example, you can set the background color to yellow
-
-                columnNamesWorksheet.Range[2, i + 1].Style.FillPattern = ExcelPatternType.Solid;
-                columnNamesWorksheet.Range[2, i + 1].Style.KnownColor = ExcelColors.Yellow;
-
-
-            }
-
-
         }
 
 
@@ -246,58 +208,13 @@ public class ExcelService : IExcelService
             }
         }
         AddDataValidation(columnNamesWorksheet, columns, parentId);
-        //full table display based on listentityid
-        int? listEntityId = columns.FirstOrDefault()?.ListEntityId;
 
-        if (listEntityId.HasValue)
-        {
-            // Fetch row data using GetTableDataByListEntityId method
-            var result1 = GetTableDataByListEntityId(listEntityId.Value).Result;
-            var (tableName, rows) = result1;
-
-            if (rows != null && rows.Any())
-            {
-                // Add a worksheet for the row data
-                Worksheet rowDataWorksheet = workbook.Worksheets.Add("rowDataWorksheet");
-
-                // Set the starting cell to populate the row data
-                int startRow = 1;
-                int startColumn = 1;
-
-                // Get column names dynamically from the rowData
-                var rowDataColumns = (rows.First() as IDictionary<string, object>)?.Keys.ToList();
-
-                // Populate the first row with column names
-                if (rowDataColumns != null)
-                {
-                    for (int j = 0; j < rowDataColumns.Count; j++)
-                    {
-                        rowDataWorksheet.Range[startRow, startColumn + j].Text = rowDataColumns[j];
-                    }
-                }
-
-                // Populate the remaining rows with row data
-                for (int i = 0; i < rows.Count; i++)
-                {
-                    var rowData = rows[i] as IDictionary<string, object>;
-
-                    // Loop through columns to populate data
-                    for (int j = 0; j < rowDataColumns.Count; j++)
-                    {
-                        var columnName = rowDataColumns[j];
-                        var cellValue = rowData[columnName]?.ToString();
-                        rowDataWorksheet.Range[startRow + i + 1, startColumn + j].Text = cellValue ?? "";
-                    }
-                }
-            }
-        }
 
         using (MemoryStream memoryStream = new MemoryStream())
         {
             workbook.SaveToStream(memoryStream, FileFormat.Version2013);
             return memoryStream.ToArray();
         }
-
     }
 
     private async Task InsertDataIntoExcel(Worksheet columnNamesWorksheet, List<EntityColumnDTO> columns, int? parentId)
@@ -335,7 +252,6 @@ public class ExcelService : IExcelService
             throw;
         }
     }
-
     private void HighlightDuplicates(Worksheet sheet, int columnNumber, int startRow, int endRow)
     {
         string columnLetter = GetExcelColumnName(columnNumber);
@@ -363,26 +279,6 @@ public class ExcelService : IExcelService
             }
             for (int col = 1; col <= columnCount; col++)
             {
-
-                var forbiddenCharactersRegex = new Regex("[,;]");
-
-                // Check if the cell value contains commas or semicolons
-                var hasForbiddenCharacters = forbiddenCharactersRegex.IsMatch(columnNamesWorksheet.Range[startRow, col, endRow, col].Text);
-
-                if (hasForbiddenCharacters)
-                {
-                    // Apply formatting or show an error message for cells with forbidden characters
-                    // For example, you can highlight the cell or display a message
-                    var errorCell = columnNamesWorksheet.Range[startRow, col, endRow, col];
-                    errorCell.Style.FillPattern = ExcelPatternType.Solid;
-                    errorCell.Style.KnownColor = ExcelColors.Yellow;
-                    // Add a comment to the cell
-                    //var comment = errorCell.AddComment("Cell cannot contain commas or semicolons", "Author");
-
-                    // You can also throw an exception or handle the error in your preferred way
-                    throw new InvalidOperationException("Cell cannot contain commas or semicolons");
-                }
-
                 // Get the data type for the current column
                 string dataType = columns[col - 1].Datatype;
                 int length = columns[col - 1].Length;
@@ -400,13 +296,55 @@ public class ExcelService : IExcelService
                 int maxLength = nullableMaxLength.HasValue ? nullableMaxLength.Value : 0; // Use 0 as a default value when MaxLength is null
                 string dateMinValue = columns[col - 1].DateMinValue;
                 string dateMaxValue = columns[col - 1].DateMaxValue;
+
                 // Specify the range for data validation
                 CellRange range = columnNamesWorksheet.Range[startRow, col, endRow, col];
                 Validation validation = range.DataValidation;
+
+
                 //Protect the worksheet with password
                 columnNamesWorksheet.Protect("123456", SheetProtectionType.All);
 
-                if (dataType.Equals("string", StringComparison.OrdinalIgnoreCase))
+
+                bool isListOfValuesColumn = string.Equals(dataType, "listofvalue", StringComparison.OrdinalIgnoreCase);
+                if (isListOfValuesColumn)
+                {
+                    int checklistEntityValue = columns[col - 1].ListEntityValue;
+                    var result = GetTableDataByChecklistEntityValue(checklistEntityValue);
+                    (string tableName, List<dynamic> rows) = result;
+
+                    if (tableName != null && rows != null && rows.Any())
+                    {
+                        // Convert dynamic rows to a list of dictionaries
+                        List<Dictionary<string, object>> rowsList = rows
+                            .Select(row => (IDictionary<string, object>)row)
+                            .Select(dict => dict.ToDictionary(pair => pair.Key, pair => pair.Value))
+                            .ToList();
+
+                        // Assuming dropdownOptions is a List<string>
+                        var dropdownOptions = rowsList
+                        .Select((row, index) => new { Value = row.Values.FirstOrDefault()?.ToString(), Index = index + 1 })
+                        .ToList();
+
+
+                        // Set the validation values
+                        validation.Values = dropdownOptions
+                            .Select(option => $"{option.Index}: {option.Value}") // Combine index and value as a string
+                            .ToArray(); // Convert to string array
+
+                        validation.ErrorTitle = "Error";
+                        validation.InputTitle = "Input Data";
+                        validation.ErrorMessage = "Select values from dropdown";
+                        validation.InputMessage = "Select values from dropdown";
+
+                    }
+                    else
+                    {
+                        // Handle the case where no rows were retrieved
+                        Console.WriteLine($"No rows retrieved for dropdown values in column {col}.");
+                    }
+                }
+                else if (dataType.Equals("string", StringComparison.OrdinalIgnoreCase))
                 {
                     // Text validation with min and max length
                     validation.CompareOperator = ValidationComparisonOperator.Between;
@@ -677,6 +615,7 @@ public class ExcelService : IExcelService
             {
                 lastletter++;
             }
+
             for (int col = 1; col <= columnCount; col++)
             {
                 // Get the data type for the current column
@@ -699,13 +638,49 @@ public class ExcelService : IExcelService
                 // Specify the range for data validation
                 CellRange range = columnNamesWorksheet.Range[startRow, col, endRow, col];
                 Validation validation = range.DataValidation;
-
-
-
                 //Protect the worksheet with password
                 columnNamesWorksheet.Protect("123456", SheetProtectionType.All);
+                // Check if the current column has a data type of "ListOfValues"
+                bool isListOfValuesColumn = string.Equals(dataType, "listofvalue", StringComparison.OrdinalIgnoreCase);
+                if (isListOfValuesColumn)
+                {
+                    int checklistEntityValue = columns[col - 1].ListEntityValue;
+                    var result = GetTableDataByChecklistEntityValue(checklistEntityValue);
+                    (string tableName, List<dynamic> rows) = result;
 
-                if (dataType.Equals("string", StringComparison.OrdinalIgnoreCase))
+                    if (tableName != null && rows != null && rows.Any())
+                    {
+                        // Convert dynamic rows to a list of dictionaries
+                        List<Dictionary<string, object>> rowsList = rows
+                            .Select(row => (IDictionary<string, object>)row)
+                            .Select(dict => dict.ToDictionary(pair => pair.Key, pair => pair.Value))
+                            .ToList();
+
+                        // Assuming dropdownOptions is a List<string>
+                        var dropdownOptions = rowsList
+                        .Select((row, index) => new { Value = row.Values.FirstOrDefault()?.ToString(), Index = index + 1 })
+                        .ToList();
+
+
+                        // Set the validation values
+                        validation.Values = dropdownOptions
+                            .Select(option => $"{option.Index}: {option.Value}") // Combine index and value as a string
+                            .ToArray(); // Convert to string array
+
+                        validation.ErrorTitle = "Error";
+                        validation.InputTitle = "Input Data";
+                        validation.ErrorMessage = "Select values from dropdown";
+                        validation.InputMessage = "Select values from dropdown";
+
+                    }
+                    else
+                    {
+                        // Handle the case where no rows were retrieved
+                        Console.WriteLine($"No rows retrieved for dropdown values in column {col}.");
+                    }
+                }
+
+                else if (dataType.Equals("string", StringComparison.OrdinalIgnoreCase))
                 {
                     // Text validation with min and max length
                     validation.CompareOperator = ValidationComparisonOperator.Between;
@@ -956,41 +931,10 @@ public class ExcelService : IExcelService
                         validation.ErrorMessage = "Invalid byte array format or length.";
                     }
                 }
-                else if (dataType.Equals("listofvalue", StringComparison.OrdinalIgnoreCase))
-                {
-                    //int checklistEntityValue = 4;
-                    //// Call the GetTableDataByChecklistEntityValue method to get distinct values for the specified column
-                    //var (tableName,rows) = GetTableDataByChecklistEntityValue(checklistEntityValue);
 
-                    //if (rows.Any())
-                    //{
-                    //    List<string> stringList = new List<string>();
 
-                    //    foreach (var row in rows)
-                    //    {
-                    //        // Assuming each row is a single value convertible to string
-                    //        stringList.Add(row.ToString());
-                    //    }
 
-                    //    // Convert List<string> to string[]
-                    //    validation.Values = stringList.ToArray();
-
-                    //    validation.ErrorTitle = "Error";
-                    //    validation.InputTitle = "Input Data";
-                    //    validation.ErrorMessage = "Select values from dropdown";
-                    //    validation.InputMessage = "Select values from dropdown";
-                    //}
-                    //else
-                    //{
-                    //    validation.Values = new string[] { "Default1", "Default2" };
-                    //    validation.ErrorTitle = "Error";
-                    //    validation.InputTitle = "Input Data";
-                    //    validation.ErrorMessage = "Select values from dropdown";
-                    //    validation.InputMessage = "Select values from dropdown";
-                    //}
-                }
-
-                }
+            }
             for (int i = 3; i <= 65537; i++)
             {
                 string startindex = letter + i.ToString();
@@ -1042,7 +986,6 @@ public class ExcelService : IExcelService
             return entityListMetadataModels;
         }
     }
-
     public DataTable ReadExcelFromFormFile(IFormFile excelFile)
 
     {
@@ -1068,7 +1011,6 @@ public class ExcelService : IExcelService
                     if (string.IsNullOrWhiteSpace(firstCell.Text))
 
                     {
-
                         // Skip this column
 
                         continue;
@@ -1152,7 +1094,6 @@ public class ExcelService : IExcelService
         }
 
     }
-   
     public List<Dictionary<string, string>> ReadDataFromExcel(Stream excelFileStream, int rowCount)
 
     {
@@ -1340,7 +1281,6 @@ public class ExcelService : IExcelService
         }
         return columnsDTO;
     }
-
     public async Task<ValidationResultData> ValidateNotNull(DataTable excelData, List<EntityColumnDTO> columnsDTO)
     {
         List<string> badRows = new List<string>();
@@ -1380,7 +1320,6 @@ public class ExcelService : IExcelService
         // Return both results
         return new ValidationResultData { BadRows = badRows, SuccessData = validRowsDataTable, errorcolumns = errorColumnNames, Column_Name = string.Empty };
     }
-
     public DataTypeValidationResult ValidateDataTypes(ValidationResultData validationResult, List<EntityColumnDTO> columnsDTO)
     {
         List<string> badRows = new List<string>();
@@ -1423,7 +1362,6 @@ public class ExcelService : IExcelService
             ValidDataTypesDataTable = validDataTypesDataTable
         };
     }
-
     public async Task<ValidationResultData> ValidatePrimaryKeyAsync(ValidationResultData validationResult, List<EntityColumnDTO> columnsDTO, string tableName)
     {
         List<string> badRows = new List<string>();
@@ -1448,7 +1386,7 @@ public class ExcelService : IExcelService
         for (int row = 0; row < validRowsDataTable.Rows.Count; row++)
         {
             bool rowValidationFailed = false;
-          //  var badRowData = new List<string>();
+            //  var badRowData = new List<string>();
 
             for (int col = 0; col < primaryKeyColumns.Count; col++)
             {
@@ -1680,7 +1618,10 @@ public class ExcelService : IExcelService
 
         var columnProperties = GetColumnsForEntity(tableName).ToList();
 
+
         var booleancolumns = columnProperties.Where(c => c.Datatype.ToLower() == "boolean").ToList();
+
+        var listofvaluecolumns = columnProperties.Where(c => c.Datatype.ToLower() == "listofvalue").ToList();
 
         List<Dictionary<string, string>> convertedDataList = new List<Dictionary<string, string>>();
 
@@ -1741,39 +1682,76 @@ public class ExcelService : IExcelService
             {
 
                 foreach (var data2 in convertedDataList)
-
                 {
-
                     foreach (var boolvalue in booleancolumns)
-
                     {
-
                         if (data2.ContainsKey(boolvalue.EntityColumnName))
-
                         {
-
                             // Update the value for the specific key
-
                             var value = data2[boolvalue.EntityColumnName];
-
                             if (value.ToLower() == boolvalue.True.ToLower())
-
                             {
-
                                 data2[boolvalue.EntityColumnName] = "1";
-
                             }
-
                             else
-
                             {
-
                                 data2[boolvalue.EntityColumnName] = "0";
-
                             }
-
                         }
+                    }
+                    foreach (var lof in listofvaluecolumns)
+                    {
+                        if (data2.ContainsKey(lof.EntityColumnName))
+                        {
+                            var value = data2[lof.EntityColumnName];
+                            // Find the index of the semicolon
+                            int semicolonIndex = value.IndexOf(':');
+                            // Extract the substring before the semicolon
+                            string extractedValue = (semicolonIndex >= 0) ? value.Substring(0, semicolonIndex) : value;
+                            // Use null-conditional operator and null-coalescing operator to parse and assign
+                            int intValue = int.TryParse(extractedValue, out int temp) ? temp : 0;
 
+                            int listvalue = lof.ListEntityKey;
+
+                            int listentityidvalue = lof.ListEntityId;
+
+                            // Use Entity Framework Core to get the table name
+                            var tableNameEntity = _context.EntityColumnListMetadataModels.FirstOrDefault(mapping => mapping.ListEntityId == listentityidvalue);
+
+                            //primarykey column
+                            var primarykey = _context.EntityColumnListMetadataModels.FirstOrDefault(mapping => mapping.ListEntityKey == listvalue);
+
+                            // Query the EntityListMetadataModels DbSet to get the EntityName based on the listEntityId
+                            var entityNameEntity = _context.EntityListMetadataModels.FirstOrDefault(entity => entity.Id == tableNameEntity.ListEntityId);
+                            string tableNames = entityNameEntity.EntityName;
+
+                            // Dynamically query the table based on the provided table name
+                            string rowDataQuery = $"SELECT * FROM public.\"{tableNames}\"";
+                            // Use NpgsqlDataAdapter to fetch data from the table
+                            using (NpgsqlDataAdapter adapter = new NpgsqlDataAdapter(rowDataQuery, connectionString))
+                            {
+                                DataTable dataTable = new DataTable();
+                                adapter.Fill(dataTable);
+
+                                // Assuming you have the DataTable named 'dataTable'
+                                int rowIndexToRetrieve = intValue - 1;
+
+                                if (rowIndexToRetrieve >= 0 && rowIndexToRetrieve < dataTable.Rows.Count)
+                                {
+                                    DataRow rowToRetrieve = dataTable.Rows[rowIndexToRetrieve];
+
+                                    // Use LINQ to get column names and values for the specified row
+                                    if (dataTable.Columns.Contains(primarykey.EntityColumnName))
+                                    {
+                                        // Retrieve the value of the specified column for the specified row
+                                        object columnValue = rowToRetrieve[primarykey.EntityColumnName];
+                                        data2[lof.EntityColumnName] = columnValue.ToString();
+
+
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     using (NpgsqlCommand cmd = new NpgsqlCommand())
@@ -1955,7 +1933,7 @@ public class ExcelService : IExcelService
     {
         // Use Entity Framework Core to get the table name
         var tableNameEntity = _context.EntityColumnListMetadataModels.FirstOrDefault(mapping => mapping.ListEntityId == listEntityId);
-       
+
         if (tableNameEntity == null)
         {
             // Handle the case where the table name is not found
@@ -1965,7 +1943,7 @@ public class ExcelService : IExcelService
         // Query the EntityListMetadataModels DbSet to get the EntityName based on the listEntityId
         var entityNameEntity = _context.EntityListMetadataModels.FirstOrDefault(entity => entity.Id == tableNameEntity.ListEntityId);
 
-       
+
         if (entityNameEntity == null)
         {
             // Handle the case where the EntityName is not found
@@ -1998,54 +1976,6 @@ public class ExcelService : IExcelService
 
     }
 
-    public async Task<(string TableName, List<dynamic> Rows)> GetTableDataByEntityId(int entityId)
-    {
-        // Use Entity Framework Core to get the table name
-        var tableNameEntity = await _context.EntityColumnListMetadataModels
-            .FirstOrDefaultAsync(mapping => mapping.EntityId == entityId);
-
-        if (tableNameEntity == null)
-        {
-            // Handle the case where the table name is not found
-            return (null, null);
-        }
-
-        // Query the EntityListMetadataModels DbSet to get the EntityName based on the entityId
-        var entityNameEntity = await _context.EntityListMetadataModels
-            .FirstOrDefaultAsync(entity => entity.Id == tableNameEntity.EntityId);
-
-        if (entityNameEntity == null)
-        {
-            // Handle the case where the EntityName is not found
-            return (null, null);
-        }
-
-        string tableName1 = entityNameEntity.EntityName;
-
-        try
-        {
-            using (IDbConnection dbConnection = new NpgsqlConnection(_dbConnection.ConnectionString))
-            {
-                dbConnection.Open();
-
-                // Dynamically query the table based on the provided table name
-                string rowDataQuery = $"SELECT * FROM public.\"{tableName1}\"";
-
-                // Use Dapper to execute the query and return the results
-                var rows1 = dbConnection.Query(rowDataQuery).ToList();
-
-                return (tableName1, rows1);
-            }
-
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"An error occurred in GetTableDataByEntityId: {ex.Message}");
-            throw;
-        }
-    }
-
-
     public (int EntityId, string EntityColumnName) GetAllEntityColumnData(int checklistEntityValue)
     {
         List<EntityColumnDTO> allData = _context.EntityColumnListMetadataModels
@@ -2065,7 +1995,6 @@ public class ExcelService : IExcelService
             return (0, string.Empty);
         }
     }
-
 
     public (string TableName, List<dynamic> Rows) GetTableDataByChecklistEntityValue(int checklistEntityValue)
     {
@@ -2111,13 +2040,6 @@ public class ExcelService : IExcelService
             throw;
         }
     }
-
-
-
-
-
-
-
 }
 
 
