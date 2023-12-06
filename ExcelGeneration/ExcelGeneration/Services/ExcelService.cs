@@ -18,6 +18,7 @@ using Spire.Xls.Core;
 using System.Reflection;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
+
 public class ExcelService : IExcelService
 {
 
@@ -121,6 +122,7 @@ public class ExcelService : IExcelService
 
 
 
+
             worksheet.Range[i + 3, 9].Text = column.DateMaxValue.ToString();
             worksheet.Range[i + 3, 10].Text = column.Description;
             worksheet.Range[i + 3, 11].Text = column.IsNullable.ToString();
@@ -139,12 +141,14 @@ public class ExcelService : IExcelService
             {
                 worksheet.Range[i + 3, 12].Text = column.DefaultValue.ToString();
             }
+
             worksheet.Range[i + 3, 13].Text = column.ColumnPrimaryKey.ToString();
             worksheet.Range[i + 3, 14].Text = column.True.ToString();
             worksheet.Range[i + 3, 15].Text = column.False.ToString();
             worksheet.Range[i + 3, 16].Text = column.ListEntityId.ToString();
             worksheet.Range[i + 3, 17].Text = column.ListEntityKey.ToString();
             worksheet.Range[i + 3, 18].Text = column.ListEntityValue.ToString();
+
 
             var lastRowIndex1 = worksheet.Rows.Length;
             worksheet.Range[lastRowIndex1 + 1, 1].Text = (i + 2).ToString();
@@ -186,6 +190,7 @@ public class ExcelService : IExcelService
             columnNamesWorksheet.Range[2, i + 1].Text = column.EntityColumnName;
             int entityId = GetEntityIdByEntityName(column.entityname);
             columnNamesWorksheet.Range["A1"].Text = entityId.ToString();
+
         }
 
 
@@ -304,6 +309,8 @@ public class ExcelService : IExcelService
 
                 //Protect the worksheet with password
                 columnNamesWorksheet.Protect("123456", SheetProtectionType.All);
+    
+
 
 
                 bool isListOfValuesColumn = string.Equals(dataType, "listofvalue", StringComparison.OrdinalIgnoreCase);
@@ -345,6 +352,7 @@ public class ExcelService : IExcelService
                     }
                 }
                 else if (dataType.Equals("string", StringComparison.OrdinalIgnoreCase))
+
                 {
                     // Text validation with min and max length
                     validation.CompareOperator = ValidationComparisonOperator.Between;
@@ -1617,6 +1625,7 @@ public class ExcelService : IExcelService
     {
 
         var columnProperties = GetColumnsForEntity(tableName).ToList();
+   
 
 
         var booleancolumns = columnProperties.Where(c => c.Datatype.ToLower() == "boolean").ToList();
@@ -1715,11 +1724,13 @@ public class ExcelService : IExcelService
 
                             int listentityidvalue = lof.ListEntityId;
 
+
                             // Use Entity Framework Core to get the table name
                             var tableNameEntity = _context.EntityColumnListMetadataModels.FirstOrDefault(mapping => mapping.ListEntityId == listentityidvalue);
 
                             //primarykey column
                             var primarykey = _context.EntityColumnListMetadataModels.FirstOrDefault(mapping => mapping.ListEntityKey == listvalue);
+
 
                             // Query the EntityListMetadataModels DbSet to get the EntityName based on the listEntityId
                             var entityNameEntity = _context.EntityListMetadataModels.FirstOrDefault(entity => entity.Id == tableNameEntity.ListEntityId);
@@ -1739,6 +1750,7 @@ public class ExcelService : IExcelService
                                 if (rowIndexToRetrieve >= 0 && rowIndexToRetrieve < dataTable.Rows.Count)
                                 {
                                     DataRow rowToRetrieve = dataTable.Rows[rowIndexToRetrieve];
+
 
                                     // Use LINQ to get column names and values for the specified row
                                     if (dataTable.Columns.Contains(primarykey.EntityColumnName))
