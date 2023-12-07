@@ -270,7 +270,7 @@ public class ExcelService : IExcelService
 
         if (parentId.HasValue)
         {
-            int columnCount = columnNamesWorksheet.Columns.Length - 2;
+            int columnCount = columnNamesWorksheet.Columns.Length - 1;
             char letter = 'A';
             char lastletter = 'A';
             // Protect the worksheet with a password

@@ -3,6 +3,7 @@ using DynamicTableCreation.Data;
 using DynamicTableCreation.Models.DTO;
 using DynamicTableCreation.Services.Interface;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using System.Data;
 using System.Data.Common;
@@ -54,14 +55,22 @@ namespace DynamicTableCreation.Services
                         False = column.False,
                         ListEntityId = column.ListEntityId,
                         ListEntityKey = column.ListEntityKey,
-                        ListEntityValue = column.ListEntityValue
+                        ListEntityValue = column.ListEntityValue                        
 
                     }).ToList();
+                columnsDTO = columnsDTO.Select(column =>
+                {
+                    column.S_ListEntityId = GetEntityNameByEntityId(column.ListEntityId);
+                    column.S_ListEntityKey = GetEntityColumnNameByEntityId(column.ListEntityKey);
+                    column.S_ListEntityValue = GetEntityColumnNameByEntityId(column.ListEntityValue);
+                    return column;
+                }).ToList();
 
                 if (columnsDTO.Count == 0)
                 {
                     return null;
                 }
+          
                 return columnsDTO;
             }
             catch (Exception ex)
@@ -71,6 +80,35 @@ namespace DynamicTableCreation.Services
             }
         }
 
+        public string GetEntityNameByEntityId( int listentityId)
+        {
+            // Query the EntityListMetadataModels DbSet to get the EntityName based on the listEntityId
+            var entityNameEntity = _context.EntityListMetadataModels.FirstOrDefault(entity => entity.Id == listentityId);
+
+            if (entityNameEntity == null)
+            {
+                // Handle the case where the EntityName is not found
+                return null;
+            }
+            var tableName = entityNameEntity.EntityName;
+
+            return tableName;
+        }
+
+        public string GetEntityColumnNameByEntityId(int listentitycolumnId)
+        {
+            // Query the EntityListMetadataModels DbSet to get the EntityName based on the listEntityId
+            var entityNameEntity = _context.EntityColumnListMetadataModels.FirstOrDefault(x => x.Id == listentitycolumnId);
+
+            if (entityNameEntity == null)
+            {
+                // Handle the case where the EntityName is not found
+                return null;
+            }
+            var columnname = entityNameEntity.EntityColumnName;
+
+            return columnname;
+        }
 
         public async Task<(string TableName, List<dynamic> Rows)> GetTableDataByListEntityId(int listEntityId)
         {
@@ -119,6 +157,7 @@ namespace DynamicTableCreation.Services
 
         }
 
+        
 
     }
 }
