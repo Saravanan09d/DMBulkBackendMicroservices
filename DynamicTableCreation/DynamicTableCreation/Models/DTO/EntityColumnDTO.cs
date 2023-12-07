@@ -28,6 +28,10 @@ namespace DynamicTableCreation.Models.DTO
         public int ListEntityKey { get; set; }
         public int ListEntityValue { get; set; }
 
+        public string? S_ListEntityId { get; set; }
+        public string? S_ListEntityKey { get; set; }
+        public string? S_ListEntityValue { get; set; }
+
         public static explicit operator EntityColumnDTO(EntityColumnListMetadataModel data)
         {
             return new EntityColumnDTO
