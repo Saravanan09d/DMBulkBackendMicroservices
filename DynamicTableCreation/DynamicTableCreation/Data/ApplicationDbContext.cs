@@ -14,6 +14,10 @@ namespace DynamicTableCreation.Data
         public DbSet<EntityColumnListMetadataModel> EntityColumnListMetadataModels { get; set; }
         public DbSet<LogParent> logParents { get; set; }
         public DbSet<LogChild> logChilds { get; set; }
+
+        public DbSet<UserRoleModel> UserRoleModel { get; set; }
+
+        public DbSet<UserTableModel> UserTableModel { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<EntityColumnListMetadataModel>()

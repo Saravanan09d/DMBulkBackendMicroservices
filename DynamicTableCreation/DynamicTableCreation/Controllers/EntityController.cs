@@ -20,7 +20,7 @@ namespace ExcelGeneration.Controllers
         protected APIResponse _response;
         //private readonly ViewService _viewService;
         private readonly IViewService _viewService;
-        public EntityController(EntityService dynamicDbService, IEntitylistService entitylistService, IViewService viewService)
+        public EntityController(EntityService dynamicDbService, IEntitylistService entitylistService, IViewService viewService, ConnectionStringService ConnectionStringService)
         {
             _dynamicDbService = dynamicDbService;
             _entitylistService = entitylistService;
@@ -281,6 +281,59 @@ namespace ExcelGeneration.Controllers
                     ErrorMessage = new List<string> { $"An error occurred while checking if tables have values: {ex.Message}" },
                     Result = null
                 });
+            }
+        }
+
+        [HttpGet("GetEntityInfo/{entityName}")]
+        public IActionResult GetEntityInfo(string entityName)
+        {
+            try
+            {
+                var entityInfo = _dynamicDbService.GetEntityInfo(entityName);
+
+                if (entityInfo == null)
+                {
+                    return NotFound(); // or return some appropriate status code
+                }
+
+                return Ok(entityInfo);
+            }
+            catch (Exception ex)
+            {
+                // Log the exception or handle it as needed
+                Console.WriteLine($"An error occurred: {ex.Message}");
+                return StatusCode(500, "Internal Server Error"); // or return some appropriate status code
+            }
+        }
+        [HttpGet("updateEntityListMetadataModels")]
+        public IActionResult UpdateEntityListMetadataModels()
+        {
+            try
+            {
+                _dynamicDbService.UpdateEntityListMetadataModels();
+                return Ok("EntityListMetadataModels updated successfully.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occurred: {ex.Message}");
+                return StatusCode(500, "Internal Server Error");
+            }
+        }
+
+        [HttpGet("GetTableNames")]
+        public IActionResult GetTableNames()
+        {
+            try
+            {
+                var connectionStringService = new ConnectionStringService();
+                string connectionString = "Host=localhost;Database=DynamicTableCreationNewTable;Username=postgres;Password=openpgpwd";
+                var tableNames = connectionStringService.GetTableNames(connectionString);
+                return Ok(tableNames);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occurred: {ex.Message}");
+                return StatusCode(500, "Internal Server Error");
             }
         }
     }

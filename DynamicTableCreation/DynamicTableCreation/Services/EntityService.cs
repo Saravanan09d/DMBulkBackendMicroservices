@@ -69,17 +69,17 @@ namespace DynamicTableCreation.Services
         {
             try
             {
+                var createTableSql = GenerateCreateTableSql(request);
+                await _dbContext.Database.ExecuteSqlRawAsync(createTableSql);
                 var entityList = await CreateTableMetadataAsync(request);
                 if (entityList == null)
                 {
                     return false;
                 }
                 await BindColumnMetadataAsync(request, entityList);
-                var createTableSql = GenerateCreateTableSql(request);
-                await _dbContext.Database.ExecuteSqlRawAsync(createTableSql);
                 return true;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return false;
             }
@@ -107,7 +107,7 @@ namespace DynamicTableCreation.Services
                 await _dbContext.SaveChangesAsync();
                 return entityList;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return null;
             }
@@ -130,18 +130,18 @@ namespace DynamicTableCreation.Services
                         EntityColumnName = column.EntityColumnName,
                         Datatype = column.DataType,
                         Length = column.Length,
-                        MinLength = column.MinLength,
-                        MaxLength = column.MaxLength,
-                        MinRange = column.MinRange,
-                        MaxRange = column.MaxRange,
+                        MinLength = column.MinLength|0,
+                        MaxLength = column.MaxLength|0,
+                        MinRange = column.MinRange | 0,
+                        MaxRange = column.MaxRange | 0,
                         DateMinValue = column.DateMinValue,
                         DateMaxValue = column.DateMaxValue,
                         Description = column.Description,
                         IsNullable = column.IsNullable,
                         DefaultValue = column.DefaultValue,
-                        ListEntityId = column.ListEntityId,
-                        ListEntityKey = column.ListEntityKey,
-                        ListEntityValue = column.ListEntityValue,
+                        ListEntityId = column.ListEntityId | 0,
+                        ListEntityKey = column.ListEntityKey | 0,
+                        ListEntityValue = column.ListEntityValue | 0,
                         True = column.True,
                         False = column.False,
                         ColumnPrimaryKey = column.ColumnPrimaryKey,
@@ -219,6 +219,45 @@ namespace DynamicTableCreation.Services
                 return "ColumnNotFound";
             }
         }
+    
+        public EntityInfoDTO GetEntityInfo(string entityName)
+        {
+            try
+            {
+                var entity = _dbContext.EntityListMetadataModels
+                    .FirstOrDefault(e => e.EntityName == entityName);
+
+                if (entity == null)
+                {
+                    return null; // or throw an exception, handle as needed
+                }
+
+                var entityId = entity.Id;
+
+                var columns = _dbContext.EntityColumnListMetadataModels
+                    .Where(c => c.EntityId == entityId)
+                    .Select(c => new EntityColumnInfoDTO
+                    {
+                        Id = c.Id,
+                        EntityColumnName = c.EntityColumnName,
+                        // Add other properties as needed
+                    })
+                    .ToList();
+
+                return new EntityInfoDTO
+                {
+                    EntityId = entityId,
+                    Columns = columns
+                };
+            }
+            catch (Exception ex)
+            {
+                // Log the exception or handle it as needed
+                Console.WriteLine($"An error occurred: {ex.Message}");
+                return null; // or throw an exception, handle as needed
+            }
+        }
+
         private string GetDatatypeForListEntityKey(int listEntityKey)
         {
             try
@@ -384,48 +423,34 @@ namespace DynamicTableCreation.Services
             // Drop the existing table
             DropTable(oldEntityName);
 
-            // Get the existing entity with columns
             var existingEntity = _dbContext.EntityListMetadataModels
                 .Include(e => e.EntityColumns)
                 .FirstOrDefault(e => e.Id == entityId);
-
             if (existingEntity == null)
             {
                 return;
             }
-            // Update entity name
             existingEntity.EntityName = newEntityName;
-            // Delete old values for the given entityId
             DeleteOldValues(entityId);
-            // Update existing columns and add new columns
             foreach (var newColumn in newEntityColumns)
             {
                 var existingColumn = existingEntity.EntityColumns
                     .FirstOrDefault(c => c.EntityColumnName == newColumn.EntityColumnName);
-
                 if (existingColumn != null)
                 {
-                    // Update existing column
                     UpdateExistingColumn(existingColumn, newColumn);
                 }
                 else
                 {
-                    // Add new column
                     AddNewColumn(existingEntity, newColumn);
                 }
             }
-
-            // Save changes to the database
             _dbContext.SaveChanges();
-
-            // Generate SQL to create the new table with updated columns
             var createTableSql = GenerateCreateTableSql(new TableCreationRequest
             {
                 TableName = newEntityName,
                 Columns = newEntityColumns.Select(ConvertToColumnDefinition).ToList()
             });
-
-            // Execute the SQL to create the new table
             _dbContext.Database.ExecuteSqlRaw(createTableSql);
         }
         private void DeleteOldValues(int entityId)
@@ -443,24 +468,22 @@ namespace DynamicTableCreation.Services
                 Console.WriteLine($"An error occurred while deleting old values: {ex.Message}");
             }
         }
-
-
         private void UpdateExistingColumn(EntityColumnListMetadataModel existingColumn, EntityColumnProperties newColumn)
         {
             existingColumn.Datatype = newColumn.Datatype;
             existingColumn.Length = newColumn.Length;
-            existingColumn.MinLength = newColumn.MinLength;
-            existingColumn.MaxLength = newColumn.MaxLength;
-            existingColumn.MaxRange = newColumn.MaxRange;
-            existingColumn.MinRange = newColumn.MinRange;
+            existingColumn.MinLength = newColumn.MinLength|0;
+            existingColumn.MaxLength = newColumn.MaxLength|0;
+            existingColumn.MaxRange = newColumn.MaxRange|0;
+            existingColumn.MinRange = newColumn.MinRange|0;
             existingColumn.DateMinValue = newColumn.DateMinValue;
             existingColumn.DateMaxValue = newColumn.DateMaxValue;
             existingColumn.Description = newColumn.Description;
             existingColumn.IsNullable = newColumn.IsNullable;
             existingColumn.DefaultValue = newColumn.DefaultValue;
-            existingColumn.ListEntityId = newColumn.ListEntityId;
-            existingColumn.ListEntityKey = newColumn.ListEntityKey;
-            existingColumn.ListEntityValue = newColumn.ListEntityValue;
+            existingColumn.ListEntityId = newColumn.ListEntityId|0;
+            existingColumn.ListEntityKey = newColumn.ListEntityKey|0;
+            existingColumn.ListEntityValue = newColumn.ListEntityValue|0;
             existingColumn.True = newColumn.True;
             existingColumn.False = newColumn.False;
             existingColumn.ColumnPrimaryKey = newColumn.ColumnPrimaryKey;
@@ -501,18 +524,18 @@ namespace DynamicTableCreation.Services
                 EntityColumnName = entityColumn.EntityColumnName,
                 DataType = entityColumn.Datatype,
                 Length = entityColumn.Length,
-                MinLength = entityColumn.MinLength,
-                MaxLength = entityColumn.MaxLength,
-                MaxRange = entityColumn.MaxRange,
-                MinRange = entityColumn.MinRange,
+                MinLength = entityColumn.MinLength|0,
+                MaxLength = entityColumn.MaxLength|0,
+                MaxRange = entityColumn.MaxRange | 0,
+                MinRange = entityColumn.MinRange | 0,
                 DateMinValue = entityColumn.DateMinValue,
                 DateMaxValue = entityColumn.DateMaxValue,
                 Description = entityColumn.Description,
                 IsNullable = entityColumn.IsNullable,
                 DefaultValue = entityColumn.DefaultValue,
-                ListEntityId = entityColumn.ListEntityId,
-                ListEntityKey = entityColumn.ListEntityKey,
-                ListEntityValue = entityColumn.ListEntityValue,
+                ListEntityId = entityColumn.ListEntityId | 0,
+                ListEntityKey = entityColumn.ListEntityKey | 0,
+                ListEntityValue = entityColumn.ListEntityValue | 0,
                 True = entityColumn.True,
                 False = entityColumn.False,
                 ColumnPrimaryKey = entityColumn.ColumnPrimaryKey,
@@ -592,6 +615,37 @@ namespace DynamicTableCreation.Services
             {
                 Console.WriteLine($"An error occurred while fetching entity data: {ex.Message}");
                 return (string.Empty, string.Empty, string.Empty);
+            }
+        }
+        public void UpdateEntityListMetadataModels()
+        {
+            try
+            {
+                // Use raw SQL to get all table names from INFORMATION_SCHEMA.TABLES
+                var allTableNames = _dbContext.EntityListMetadataModels
+                    .FromSqlRaw("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'")
+                    .Select(e => e.EntityName)
+                    .ToList();
+
+                // Assuming EntityListMetadataModels has an associated DbSet in YourDbContext
+                var entityList = _dbContext.EntityListMetadataModels;
+
+                foreach (var tableName in allTableNames)
+                {
+                    // Check if the table name already exists in EntityListMetadataModels
+                    if (!entityList.Any(e => e.EntityName == tableName))
+                    {
+                        // Add a new record to EntityListMetadataModels for the new table
+                        entityList.Add(new EntityListMetadataModel { EntityName = tableName });
+                    }
+                }
+
+                _dbContext.SaveChanges();
+            }
+            catch (Exception ex)
+            {
+                // Handle or log the exception as needed
+                Console.WriteLine($"An error occurred while updating EntityListMetadataModels: {ex.Message}");
             }
         }
 
