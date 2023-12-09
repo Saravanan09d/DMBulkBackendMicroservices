@@ -26,6 +26,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql
 builder.Services.AddScoped<EntityService>();
 builder.Services.AddScoped<EntitylistService>();
 builder.Services.AddScoped<IViewService, ViewService>();
+builder.Services.AddScoped<ConnectionStringService>();
 builder.Services.AddScoped<IEntitylistService, EntitylistService>();
 var app = builder.Build();
 if (app.Environment.IsDevelopment())

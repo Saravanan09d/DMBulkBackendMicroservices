@@ -14,10 +14,10 @@ namespace ExcelGeneration.Data
         public DbSet<EntityListMetadataModel> EntityListMetadataModels { get; set; }
         public DbSet<EntityColumnListMetadataModel> EntityColumnListMetadataModels { get; set; }
 
-
         public DbSet<LogParent> logParents { get; set; }
 
         public DbSet<LogChild> logChilds { get; set; }
+     
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
