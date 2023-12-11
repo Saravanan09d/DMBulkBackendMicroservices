@@ -320,15 +320,17 @@ namespace ExcelGeneration.Controllers
             }
         }
 
-        [HttpGet("GetTableNames")]
-        public IActionResult GetTableNames()
+        [HttpGet("GetTableDetails")]
+        public IActionResult GetTableDetails()
         {
             try
             {
                 var connectionStringService = new ConnectionStringService();
-                string connectionString = "Host=localhost;Database=DynamicTableCreationNewTable;Username=postgres;Password=openpgpwd";
-                var tableNames = connectionStringService.GetTableNames(connectionString);
-                return Ok(tableNames);
+                // Provide your connection string based on your application configuration
+                string connectionString = "Host=localhost;Database=DynamicTableCreationDEC11;Username=postgres;Password=openpgpwd";
+
+                var tableDetails = connectionStringService.GetTableDetails(connectionString);
+                return Ok(tableDetails);
             }
             catch (Exception ex)
             {
@@ -336,6 +338,7 @@ namespace ExcelGeneration.Controllers
                 return StatusCode(500, "Internal Server Error");
             }
         }
+
     }
 }
 
