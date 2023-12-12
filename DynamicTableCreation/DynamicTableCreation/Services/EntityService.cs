@@ -120,7 +120,6 @@ namespace DynamicTableCreation.Services
                 {
                     var existingColumn = await _dbContext.EntityColumnListMetadataModels
                         .FirstOrDefaultAsync(c => c.EntityColumnName.ToLower() == column.EntityColumnName.ToLower() && c.EntityId == entityList.Id);
-
                     if (existingColumn != null)
                     {
                         continue;
@@ -152,7 +151,6 @@ namespace DynamicTableCreation.Services
 
                     _dbContext.EntityColumnListMetadataModels.Add(entityColumn);
                 }
-
                 await _dbContext.SaveChangesAsync();
             }
             catch (Exception ex)
@@ -172,13 +170,11 @@ namespace DynamicTableCreation.Services
         {
             try
             {
-                // Assuming EntityListMetadataModels is the DbSet in your DbContext
                 var entity = _dbContext.EntityListMetadataModels
                     .FirstOrDefault(e => e.Id == entityId);
 
                 if (entity != null)
                 {
-                    // Check if EntityName is not null or empty before returning
                     if (!string.IsNullOrEmpty(entity.EntityName))
                     {
                         return entity.EntityName;
@@ -188,7 +184,6 @@ namespace DynamicTableCreation.Services
             }
             catch (Exception ex)
             {
-                // Handle or log the exception as needed
                 Console.WriteLine($"An error occurred while getting table name: {ex.Message}");
                 return "TableNotFound";
             }
@@ -197,13 +192,11 @@ namespace DynamicTableCreation.Services
         {
             try
             {
-                // Assuming EntityColumnListMetadataModels is the DbSet in your DbContext
                 var column = _dbContext.EntityColumnListMetadataModels
                     .FirstOrDefault(e => e.ListEntityKey == listEntityKey);
 
                 if (column != null)
                 {
-                    // Check if EntityColumnName is not null or empty before returning
                     if (!string.IsNullOrEmpty(column.EntityColumnName))
                     {
                         return column.EntityColumnName;
@@ -214,7 +207,6 @@ namespace DynamicTableCreation.Services
             }
             catch (Exception ex)
             {
-                // Handle or log the exception as needed
                 Console.WriteLine($"An error occurred while getting column name: {ex.Message}");
                 return "ColumnNotFound";
             }
@@ -370,19 +362,15 @@ namespace DynamicTableCreation.Services
                     {
                         createTableSql += $" DEFAULT '{column.DefaultValue}'";
                     }
-
                     if (column.ColumnPrimaryKey)
                     {
                         createTableSql += " PRIMARY KEY";
                     }
-
                     hasColumns = true;
                 }
-
                 createTableSql += hasColumns ? "," : "";
                 createTableSql += "\"createddate\" timestamp DEFAULT CURRENT_TIMESTAMP";
                 createTableSql += ");";
-
                 return createTableSql;
             }
             catch (Exception ex)
@@ -404,7 +392,6 @@ namespace DynamicTableCreation.Services
                 .Where(e => e.Id == entityId)
                 .Select(e => e.EntityName)
                 .FirstOrDefault();
-
             return oldEntityName;
         }
 
@@ -417,12 +404,8 @@ namespace DynamicTableCreation.Services
         }
         public void UpdateEntityColumn(int entityId, string newEntityName, List<EntityColumnProperties> newEntityColumns)
         {
-            // Get the old entity name
             string oldEntityName = GetOldEntityName(entityId);
-
-            // Drop the existing table
             DropTable(oldEntityName);
-
             var existingEntity = _dbContext.EntityListMetadataModels
                 .Include(e => e.EntityColumns)
                 .FirstOrDefault(e => e.Id == entityId);

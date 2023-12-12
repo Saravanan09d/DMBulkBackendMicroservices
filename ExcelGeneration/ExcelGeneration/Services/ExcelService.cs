@@ -12,14 +12,11 @@ using System.Text;
 using System.Drawing;
 using ExcelGeneration.Services;
 
-
 public class ExcelService : IExcelService
 {
-
     private readonly ApplicationDbContext _context;
     private readonly IDbConnection _dbConnection;
     private readonly ExportExcelService _exportExcelService;
-
     public ExcelService(ApplicationDbContext context, IDbConnection dbConnection, ExportExcelService exportExcelService)
     {
         _context = context;

@@ -4,6 +4,7 @@ using DynamicTableCreation.Services.Interface;
 using System.Net;
 using DynamicTableCreation.Models;
 using DynamicTableCreation.Services;
+using DynamicTableCreation.Data;
 using DynamicTableCreation.Models.DTO;
 
 
@@ -17,12 +18,14 @@ namespace ExcelGeneration.Controllers
     {
         private readonly EntityService _dynamicDbService;
         private readonly IEntitylistService _entitylistService;
+        private readonly ApplicationDbContext _dbContext;
         protected APIResponse _response;
         //private readonly ViewService _viewService;
         private readonly IViewService _viewService;
-        public EntityController(EntityService dynamicDbService, IEntitylistService entitylistService, IViewService viewService, ConnectionStringService ConnectionStringService)
+        public EntityController(EntityService dynamicDbService, IEntitylistService entitylistService, IViewService viewService, ConnectionStringService ConnectionStringService, ApplicationDbContext dbContext)
         {
             _dynamicDbService = dynamicDbService;
+            _dbContext = dbContext;
             _entitylistService = entitylistService;
             _viewService = viewService;
             _response = new();
@@ -138,10 +141,8 @@ namespace ExcelGeneration.Controllers
             try
             {
                 var columnsDTO = _viewService.GetColumnsForEntity(entityName);
-                // Assuming you have a ListEntityId in your columns
                 int listEntityId = columnsDTO.FirstOrDefault()?.ListEntityId ?? 0;
-                // Retrieve data from the database using the service method
-                var result = _viewService.GetTableDataByListEntityId(listEntityId).Result; // Use .Result to block until completion
+                var result = _viewService.GetTableDataByListEntityId(listEntityId).Result;
                 if (columnsDTO == null)
                 {
                     return NotFound(new APIResponse
@@ -181,15 +182,12 @@ namespace ExcelGeneration.Controllers
                     return BadRequest("Invalid request data. Update.PropertiesList cannot be null.");
                 }
 
-                int entityId = request.EntityId; // Use the entityId from the request
-
+                int entityId = request.EntityId; 
                 if (entityId == 0)
                 {
                     return NotFound($"EntityId not found for EntityName: {request.EntityName}");
                 }
-
                 _dynamicDbService.UpdateEntityColumn(entityId, request.EntityName, request.Update.PropertiesList);
-
                 return Ok(new APIResponse
                 {
                     StatusCode = HttpStatusCode.OK,
@@ -205,7 +203,6 @@ namespace ExcelGeneration.Controllers
 
         [HttpGet("getEntityIdByName/{entityName}")]
         public IActionResult GetEntityIdByName(string entityName)
-        
         {
             try
             {
@@ -235,14 +232,10 @@ namespace ExcelGeneration.Controllers
             try
             {
                 var entityData = await _dynamicDbService.GetEntityData(listEntityId, listEntityKey, listEntityValue);
-
                 if (string.IsNullOrEmpty(entityData.EntityName) || string.IsNullOrEmpty(entityData.EntityKeyColumnName) || string.IsNullOrEmpty(entityData.EntityValueColumnName))
                 {
-                    // Handle the case where no data is found
                     return NotFound("No data found for the provided parameters.");
                 }
-
-                // Return the data as a JSON response
                 return Ok(new
                 {
                     EntityName = entityData.EntityName,
@@ -252,10 +245,7 @@ namespace ExcelGeneration.Controllers
             }
             catch (Exception ex)
             {
-                // Log the exception or handle it as needed
                 Console.WriteLine($"An error occurred: {ex.Message}");
-
-                // Return an error response
                 return StatusCode(500, "An error occurred while processing the request.");
             }
         }
@@ -271,9 +261,7 @@ namespace ExcelGeneration.Controllers
             }
             catch (Exception ex)
             {
-                // Log or handle the error as needed
                 Console.WriteLine($"An error occurred while checking if tables have values: {ex.Message}");
-
                 return StatusCode((int)HttpStatusCode.InternalServerError, new APIResponse
                 {
                     StatusCode = HttpStatusCode.InternalServerError,
@@ -290,21 +278,19 @@ namespace ExcelGeneration.Controllers
             try
             {
                 var entityInfo = _dynamicDbService.GetEntityInfo(entityName);
-
                 if (entityInfo == null)
                 {
-                    return NotFound(); // or return some appropriate status code
+                    return NotFound(); 
                 }
-
                 return Ok(entityInfo);
             }
             catch (Exception ex)
             {
-                // Log the exception or handle it as needed
                 Console.WriteLine($"An error occurred: {ex.Message}");
-                return StatusCode(500, "Internal Server Error"); // or return some appropriate status code
+                return StatusCode(500, "Internal Server Error"); 
             }
         }
+
         [HttpGet("updateEntityListMetadataModels")]
         public IActionResult UpdateEntityListMetadataModels()
         {
@@ -321,15 +307,15 @@ namespace ExcelGeneration.Controllers
         }
 
         [HttpGet("GetTableDetails")]
-        public IActionResult GetTableDetails()
+        public IActionResult GetTableDetails([FromServices] EntityService dbContext)
         {
             try
             {
-                var connectionStringService = new ConnectionStringService();
-                // Provide your connection string based on your application configuration
-                string connectionString = "Host=localhost;Database=DynamicTableCreationDEC11;Username=postgres;Password=openpgpwd";
-
+                var connectionStringService = new ConnectionStringService(_dbContext);
+                string connectionString = "Host=localhost;Database=DynamicTableCreationLatestDEC01;Username=postgres;Password=openpgpwd";
                 var tableDetails = connectionStringService.GetTableDetails(connectionString);
+                // Add table details to the database
+                connectionStringService.AddTableDetailsToDatabase(tableDetails);
                 return Ok(tableDetails);
             }
             catch (Exception ex)
@@ -338,7 +324,6 @@ namespace ExcelGeneration.Controllers
                 return StatusCode(500, "Internal Server Error");
             }
         }
-
     }
 }
 
