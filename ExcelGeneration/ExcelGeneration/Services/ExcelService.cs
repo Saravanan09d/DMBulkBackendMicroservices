@@ -6,17 +6,11 @@ using Npgsql;
 using OfficeOpenXml;
 using System.Data;
 using Spire.Xls;
-using Spire.Xls.Collections;
 using ExcelGeneration.Models;
 using Dapper;
 using System.Text;
 using System.Drawing;
 using ExcelGeneration.Services;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using OfficeOpenXml.DataValidation;
-using Spire.Xls.Core;
-using System.Reflection;
-using Microsoft.AspNetCore.Mvc.Rendering;
 
 
 public class ExcelService : IExcelService
@@ -167,13 +161,24 @@ public class ExcelService : IExcelService
         if (parentId.HasValue)
         {
             worksheet.Range[lastRowIndex + 7, 1].Text = "4. This is Exported Data ExcelFile";
+
         }
         var staticContentRange = worksheet.Range[lastRowIndex + 2, 1, lastRowIndex + 7, 5];
         staticContentRange.Style.FillPattern = ExcelPatternType.Solid;
         staticContentRange.Style.KnownColor = ExcelColors.Yellow;
-        // Add the second worksheet for column names
-        Worksheet columnNamesWorksheet = workbook.Worksheets.Add("Fill data");
 
+        // Add the second worksheet for column names
+        Worksheet columnNamesWorksheet;
+  
+        if(!parentId.HasValue)
+        {
+            columnNamesWorksheet = workbook.Worksheets.Add("Fill data");
+        }
+        else
+        {
+            columnNamesWorksheet = workbook.Worksheets.Add("Error Records");
+        }
+        
         // After adding content to the columns
         //columnNamesWorksheet.AllocatedRange.AutoFitColumns();
         // Set a default column width for the "Fill data" worksheet
@@ -190,14 +195,15 @@ public class ExcelService : IExcelService
 
         }
 
-
         columnNamesWorksheet.Range[2, lastColumnIndex].Text = "CurrentDate";
 
         columnNamesWorksheet.HideRow(1);
 
         if (parentId.HasValue)
         {
+         
             InsertDataIntoExcel(columnNamesWorksheet, columns, parentId);
+
         }
 
         string[] sheetsToRemove = { "Sheet2", "Sheet3" }; // Names of sheets to be removed
@@ -218,7 +224,6 @@ public class ExcelService : IExcelService
             return memoryStream.ToArray();
         }
     }
-
     private async Task InsertDataIntoExcel(Worksheet columnNamesWorksheet, List<EntityColumnDTO> columns, int? parentId)
     {
         try
@@ -229,7 +234,11 @@ public class ExcelService : IExcelService
             foreach (var logChild in logChilds)
             {
                 string[] rows = logChild.Filedata.Split(';');
+
                 string errorMessage = logChild.ErrorMessage;
+
+                // Set the column name as "ErrorMessage" for the last column after processing all rows
+                columnNamesWorksheet.Range[rowIndex - 1, columns.Count + 1].Text = "ErrorMessage";
 
                 for (int i = 1; i < rows.Length; i++)
                 {
@@ -243,11 +252,17 @@ public class ExcelService : IExcelService
                     {
                         columnNamesWorksheet.Range[rowIndex, columnIndex + 1].Text = values[columnIndex];
                     }
-                    columnNamesWorksheet.Range[rowIndex, values.Length + 1].Text = errorMessage;
+
+
+                    //    columnNamesWorksheet.Range[rowIndex, values.Length + 1].Text = errorMessage;
+                    // Set the error message in the "ErrorMessage" column
+                    columnNamesWorksheet.Range[rowIndex, columns.Count + 1].Text = errorMessage;
 
                     rowIndex++;
                 }
+             
             }
+         
         }
         catch (Exception ex)
         {
@@ -307,9 +322,6 @@ public class ExcelService : IExcelService
                 //Protect the worksheet with password
                 columnNamesWorksheet.Protect("123456", SheetProtectionType.All);
     
-
-
-
                 bool isListOfValuesColumn = string.Equals(dataType, "listofvalue", StringComparison.OrdinalIgnoreCase);
                 if (isListOfValuesColumn)
                 {
@@ -645,6 +657,7 @@ public class ExcelService : IExcelService
                 Validation validation = range.DataValidation;
                 //Protect the worksheet with password
                 columnNamesWorksheet.Protect("123456", SheetProtectionType.All);
+
                 // Check if the current column has a data type of "ListOfValues"
                 bool isListOfValuesColumn = string.Equals(dataType, "listofvalue", StringComparison.OrdinalIgnoreCase);
                 if (isListOfValuesColumn)
@@ -684,6 +697,8 @@ public class ExcelService : IExcelService
                         Console.WriteLine($"No rows retrieved for dropdown values in column {col}.");
                     }
                 }
+
+
 
                 else if (dataType.Equals("string", StringComparison.OrdinalIgnoreCase))
                 {
@@ -949,7 +964,6 @@ public class ExcelService : IExcelService
             }
         }
     }
-
     private string GetExcelColumnName(int columnNumber)
     {
         int dividend = columnNumber;
@@ -1474,7 +1488,7 @@ public class ExcelService : IExcelService
         badRowsPrimaryKey = modifiedRows;
         string delimiter = ";"; // Specify the delimiter you want
         string baddatas = string.Join(delimiter, badRowsPrimaryKey);
-        string errorMessages = "Duplicate key value violates unique constraints in column " + columnName + "in" + tableName;
+        string errorMessages = "Duplicate key value violates unique constraints in column "+" "+ columnName +" "+ "in" + " " +tableName;
 
         // Return both results
         return new ValidationResult { ErrorRowNumber = values, Filedatas = baddatas, errorMessages = errorMessages };
